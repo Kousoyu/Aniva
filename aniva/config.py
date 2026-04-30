@@ -20,6 +20,8 @@ class AnivaConfig:
         min_energy_activation_factor: 能量对 activation 的最低调制因子。
             energy=1 时 factor≈1（无压制），energy=0 时 factor=此值（最大压制但非零）。
         synaptic_strength: 突触传递强度，控制连接输入对 activation 的影响幅度。
+        baseline_activity: activation 的自然回落目标值。
+        leak_rate: activation 向 baseline 回落的速率。
         plasticity_rate: 连接权重变化速率（后续使用）。
         spatial_radius: 单元分布的立方体空间半径（position 的取值范围）。
     """
@@ -35,6 +37,8 @@ class AnivaConfig:
     trace_decay_rate: float = 0.001
     min_energy_activation_factor: float = 0.25
     synaptic_strength: float = 0.05
+    baseline_activity: float = 0.05
+    leak_rate: float = 0.02
     plasticity_rate: float = 0.0001
     spatial_radius: float = 1.0
 

@@ -120,6 +120,15 @@ class LifeCore:
                 + (1.0 - cfg.min_energy_activation_factor) * unit.energy
             )
             unit.activation *= energy_factor
+            # 自然回落：activation 向 baseline 漂移，time_constant 决定速度
+            leak_delta = (
+                (cfg.baseline_activity - unit.activation)
+                * cfg.leak_rate
+                * dt
+                / unit.time_constant
+            )
+            unit.activation += leak_delta
+            unit.activation = max(0.0, min(1.0, unit.activation))
             consume_energy(unit, cfg.energy_consumption_rate, dt)
             recover_energy(unit, cfg.energy_recovery_rate, dt)
             # Trace: 活跃加深痕迹，再整体缓慢衰减

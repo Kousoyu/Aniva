@@ -35,6 +35,8 @@ def compute_synaptic_input(
         source = units.get(conn.source_id)
         if source is None:
             continue
-        contribution = source.activation * conn.weight
+        # Thresholded output: 只有超过阈值的活性才向外传播
+        effective_output = max(0.0, source.activation - source.threshold)
+        contribution = effective_output * conn.weight
         input_sum[conn.target_id] += contribution
     return dict(input_sum)

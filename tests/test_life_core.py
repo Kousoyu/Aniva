@@ -301,6 +301,8 @@ class TestEnergyFeedback:
             energy_consumption_rate=0.0,
             energy_recovery_rate=0.0,
             min_energy_activation_factor=0.25,
+            baseline_activity=0.0,
+            leak_rate=0.0,
         )
         core = LifeCore(config)
         unit = core.units[0]
@@ -325,6 +327,8 @@ class TestEnergyFeedback:
             energy_consumption_rate=0.0,
             energy_recovery_rate=0.0,
             min_energy_activation_factor=0.25,
+            baseline_activity=0.0,
+            leak_rate=0.0,
         )
         core = LifeCore(config)
         unit = core.units[0]
@@ -490,7 +494,9 @@ class TestSynapticTransmission:
             energy_consumption_rate=0.0,
             energy_recovery_rate=0.0,
             connection_density=0.0,
-            min_energy_activation_factor=1.0,  # gate 完全通过
+            min_energy_activation_factor=1.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
         )
         core = LifeCore(config)
         for unit in core.units.values():
@@ -534,6 +540,180 @@ class TestSynapticTransmission:
             dt=1.0,
             noise_strength=0.05,
             synaptic_strength=0.1,
+        )
+        core1 = LifeCore(config)
+        core2 = LifeCore(config)
+
+        for _ in range(50):
+            core1.step()
+            core2.step()
+
+        for uid in core1.units:
+            u1 = core1.units[uid]
+            u2 = core2.units[uid]
+            assert u1.activation == u2.activation
+            assert u1.energy == u2.energy
+            assert u1.trace == u2.trace
+
+
+class TestLeakAndThreshold:
+    """Phase 3.5: activation leak + threshold gating."""
+
+    def test_activation_leaks_down_to_baseline(self):
+        """高于 baseline 时，activation 回落."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            min_energy_activation_factor=1.0,
+            baseline_activity=0.05,
+            leak_rate=0.1,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.8
+        unit.energy = 1.0
+        unit.time_constant = 1.0
+
+        core.step()
+        # leak = (0.05 - 0.8) * 0.1 * 1.0 / 1.0 = -0.075 → 0.725
+        assert unit.activation < 0.8, (
+            f"Activation should leak down from 0.8, got {unit.activation}"
+        )
+
+    def test_activation_leaks_up_to_baseline(self):
+        """低于 baseline 时，activation 缓慢上升."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            min_energy_activation_factor=1.0,
+            baseline_activity=0.05,
+            leak_rate=0.1,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.0
+        unit.energy = 1.0
+        unit.time_constant = 1.0
+
+        core.step()
+        # leak = (0.05 - 0.0) * 0.1 * 1.0 / 1.0 = +0.005
+        assert unit.activation > 0.0, (
+            f"Activation should leak up from 0, got {unit.activation}"
+        )
+
+    def test_time_constant_slows_leak(self):
+        """time_constant 越大，leak 变化越慢."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            min_energy_activation_factor=1.0,
+            baseline_activity=0.05,
+            leak_rate=0.1,
+        )
+        core = LifeCore(config)
+        u_fast = core.units[0]
+        u_slow = core.units[1]
+        u_fast.activation = 0.8
+        u_fast.energy = 1.0
+        u_fast.time_constant = 0.5  # 快
+        u_slow.activation = 0.8
+        u_slow.energy = 1.0
+        u_slow.time_constant = 2.0  # 慢
+
+        core.step()
+        # fast: (0.05-0.8)*0.1/0.5 = -0.15 → 0.65
+        # slow: (0.05-0.8)*0.1/2.0 = -0.0375 → 0.7625
+        assert u_fast.activation < u_slow.activation, (
+            f"Fast unit TC={u_fast.time_constant} should leak more: "
+            f"fast={u_fast.activation}, slow={u_slow.activation}"
+        )
+
+    def test_source_below_threshold_no_synaptic_effect(self):
+        """source 低于 threshold 时，不影响 target."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            min_energy_activation_factor=1.0,
+            synaptic_strength=0.1,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(Connection(cid=0, source_id=0, target_id=1, weight=0.8))
+        core.units[0].activation = 0.1   # 低于 threshold
+        core.units[0].threshold = 0.3
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.0
+        core.units[1].energy = 1.0
+
+        core.step()
+        # effective_output = max(0, 0.1-0.3) = 0 → no synaptic contribution
+        assert core.units[1].activation == 0.0, (
+            f"Below-threshold source should not affect target, got {core.units[1].activation}"
+        )
+
+    def test_source_above_threshold_affects_target(self):
+        """source 高于 threshold 时，影响 target."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            min_energy_activation_factor=1.0,
+            synaptic_strength=0.1,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(Connection(cid=0, source_id=0, target_id=1, weight=0.5))
+        core.units[0].activation = 0.8
+        core.units[0].threshold = 0.3
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.0
+        core.units[1].energy = 1.0
+
+        core.step()
+        # effective_output = max(0, 0.8-0.3) = 0.5, contribution = 0.5*0.5 = 0.25
+        # delta = 0.25 * 0.1 * 1.0 = 0.025
+        assert core.units[1].activation > 0.0, (
+            f"Above-threshold source should affect target, got {core.units[1].activation}"
+        )
+
+    def test_leak_and_threshold_determinism(self):
+        """加入 leak 和 threshold 后，相同 seed 仍然可复现."""
+        config = AnivaConfig(
+            unit_count=10,
+            seed=88,
+            dt=1.0,
+            noise_strength=0.05,
+            synaptic_strength=0.1,
+            baseline_activity=0.05,
+            leak_rate=0.02,
         )
         core1 = LifeCore(config)
         core2 = LifeCore(config)

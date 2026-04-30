@@ -19,6 +19,8 @@ def sweep(
     baseline_activities: list[float],
     synaptic_strengths: list[float],
     seeds: list[int],
+    threshold_mins: list[float] | None = None,
+    threshold_maxs: list[float] | None = None,
     unit_count: int = 30,
     total_steps: int = 500,
 ) -> list[dict[str, Any]]:
@@ -29,16 +31,26 @@ def sweep(
         baseline_activities: 要测试的 baseline_activity 值列表。
         synaptic_strengths: 要测试的 synaptic_strength 值列表。
         seeds: 要测试的随机种子列表。
+        threshold_mins: threshold_min 值列表，None 则用默认值。
+        threshold_maxs: threshold_max 值列表，None 则用默认值。
         unit_count: 每组使用的单元数。
         total_steps: 每组运行的总步数。
 
     Returns:
         list[dict]，每个 dict 包含参数和 final_metrics。
     """
+    if threshold_mins is None:
+        threshold_mins = [AnivaConfig.threshold_min]
+    if threshold_maxs is None:
+        threshold_maxs = [AnivaConfig.threshold_max]
+
     results: list[dict[str, Any]] = []
-    for ns, ba, ss, seed in itertools.product(
-        noise_strengths, baseline_activities, synaptic_strengths, seeds
+    for ns, ba, ss, seed, tmin, tmax in itertools.product(
+        noise_strengths, baseline_activities, synaptic_strengths,
+        seeds, threshold_mins, threshold_maxs,
     ):
+        if tmin > tmax:
+            continue
         config = AnivaConfig(
             unit_count=unit_count,
             seed=seed,
@@ -46,6 +58,8 @@ def sweep(
             noise_strength=ns,
             baseline_activity=ba,
             synaptic_strength=ss,
+            threshold_min=tmin,
+            threshold_max=tmax,
         )
         result = run(config=config, total_steps=total_steps, report_interval=total_steps + 1)
         fm = result["final_metrics"]
@@ -54,12 +68,16 @@ def sweep(
             "baseline_activity": ba,
             "synaptic_strength": ss,
             "seed": seed,
+            "threshold_min": tmin,
+            "threshold_max": tmax,
             "mean_activation": fm["mean_activation"],
             "max_activation": fm["max_activation"],
             "mean_energy": fm["mean_energy"],
             "min_energy": fm["min_energy"],
             "mean_trace": fm["mean_trace"],
             "active_unit_ratio": fm["active_unit_ratio"],
+            "mean_threshold": fm["mean_threshold"],
+            "mean_activation_to_threshold_ratio": fm["mean_activation_to_threshold_ratio"],
         })
     return results
 
@@ -103,6 +121,14 @@ def main(argv: list[str] | None = None) -> int:
         help="随机种子列表"
     )
     parser.add_argument(
+        "--threshold-min", type=float, nargs="+", default=None,
+        help="threshold_min 值列表（默认 0.2）"
+    )
+    parser.add_argument(
+        "--threshold-max", type=float, nargs="+", default=None,
+        help="threshold_max 值列表（默认 0.4）"
+    )
+    parser.add_argument(
         "--output-csv", type=str, default=None,
         help="保存结果到 CSV 文件"
     )
@@ -113,6 +139,8 @@ def main(argv: list[str] | None = None) -> int:
         baseline_activities=args.baseline,
         synaptic_strengths=args.synaptic,
         seeds=args.seeds,
+        threshold_mins=args.threshold_min,
+        threshold_maxs=args.threshold_max,
         unit_count=args.unit_count,
         total_steps=args.steps,
     )

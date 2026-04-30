@@ -63,13 +63,21 @@ class Observer:
         traces = np.array([u.trace for u in self._core.units.values()])
         thresholds = np.array([u.threshold for u in self._core.units.values()])
         active_mask = activations > thresholds
+        mean_act = float(np.mean(activations))
+        mean_thresh = float(np.mean(thresholds))
         return {
             "step": self._core.step_count,
-            "mean_activation": float(np.mean(activations)),
+            "mean_activation": mean_act,
             "max_activation": float(np.max(activations)),
             "min_activation": float(np.min(activations)),
             "mean_energy": float(np.mean(energies)),
             "min_energy": float(np.min(energies)),
             "mean_trace": float(np.mean(traces)),
             "active_unit_ratio": float(np.mean(active_mask)),
+            "mean_threshold": mean_thresh,
+            "min_threshold": float(np.min(thresholds)),
+            "max_threshold": float(np.max(thresholds)),
+            "mean_activation_to_threshold_ratio": (
+                mean_act / mean_thresh if mean_thresh > 0 else 0.0
+            ),
         }

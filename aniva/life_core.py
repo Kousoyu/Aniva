@@ -47,7 +47,9 @@ class LifeCore:
                 for _ in range(3)
             )
             # 初始参数有微小差异（先天种子）
-            threshold = self.rng.uniform(0.2, 0.4)
+            threshold = self.rng.uniform(
+                self.config.threshold_min, self.config.threshold_max
+            )
             time_constant = self.rng.uniform(0.8, 1.2)
             energy = self.rng.uniform(0.4, 0.6)
             self.units[uid] = Unit(

@@ -22,6 +22,8 @@ class AnivaConfig:
         synaptic_strength: 突触传递强度，控制连接输入对 activation 的影响幅度。
         baseline_activity: activation 的自然回落目标值。
         leak_rate: activation 向 baseline 回落的速率。
+        threshold_min: Unit 初始 threshold 下限。
+        threshold_max: Unit 初始 threshold 上限。
         plasticity_rate: 连接权重变化速率（后续使用）。
         spatial_radius: 单元分布的立方体空间半径（position 的取值范围）。
     """
@@ -39,6 +41,8 @@ class AnivaConfig:
     synaptic_strength: float = 0.05
     baseline_activity: float = 0.05
     leak_rate: float = 0.02
+    threshold_min: float = 0.2
+    threshold_max: float = 0.4
     plasticity_rate: float = 0.0001
     spatial_radius: float = 1.0
 
@@ -55,3 +59,7 @@ class AnivaConfig:
             )
         if self.dt <= 0.0:
             raise ValueError(f"dt must be positive, got {self.dt}")
+        if not 0.0 <= self.threshold_min <= self.threshold_max <= 1.0:
+            raise ValueError(
+                f"threshold range invalid: [{self.threshold_min}, {self.threshold_max}]"
+            )

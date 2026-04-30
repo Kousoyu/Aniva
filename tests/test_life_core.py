@@ -73,16 +73,16 @@ class TestLifeCoreInit:
 
     def test_all_units_initialized(self):
         """所有单元都有合法的初始值."""
-        core = LifeCore(AnivaConfig(unit_count=200, seed=42))
+        config = AnivaConfig(unit_count=200, seed=42)
+        core = LifeCore(config)
         for uid, unit in core.units.items():
             assert unit.uid == uid
             assert 0.0 <= unit.activation <= 1.0
             assert 0.0 <= unit.energy <= 1.0
-            assert 0.2 <= unit.threshold <= 0.4
+            assert config.threshold_min <= unit.threshold <= config.threshold_max
             assert 0.8 <= unit.time_constant <= 1.2
-            # 位置在空间半径内
             for coord in unit.position:
-                assert -1.0 <= coord <= 1.0
+                assert -config.spatial_radius <= coord <= config.spatial_radius
 
     def test_exc_inh_ratio(self):
         """兴奋/抑制比例接近 config 设定."""
@@ -745,6 +745,8 @@ class TestObserverMetrics:
         expected_fields = {
             "step", "mean_activation", "max_activation", "min_activation",
             "mean_energy", "min_energy", "mean_trace", "active_unit_ratio",
+            "mean_threshold", "min_threshold", "max_threshold",
+            "mean_activation_to_threshold_ratio",
         }
         assert expected_fields.issubset(metrics.keys()), (
             f"Missing fields: {expected_fields - metrics.keys()}"
@@ -763,6 +765,10 @@ class TestObserverMetrics:
         assert isinstance(metrics["min_energy"], float)
         assert isinstance(metrics["mean_trace"], float)
         assert isinstance(metrics["active_unit_ratio"], float)
+        assert isinstance(metrics["mean_threshold"], float)
+        assert isinstance(metrics["min_threshold"], float)
+        assert isinstance(metrics["max_threshold"], float)
+        assert isinstance(metrics["mean_activation_to_threshold_ratio"], float)
 
     def test_active_unit_ratio_in_range(self):
         """active_unit_ratio 在 [0, 1] 范围内."""
@@ -903,6 +909,62 @@ class TestParameterSweep:
             total_steps=20,
         )
         assert results1 == results2
+
+    def test_sweep_includes_threshold_fields(self):
+        """sweep 结果包含 threshold 相关字段."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            threshold_mins=[0.15],
+            threshold_maxs=[0.35],
+            unit_count=5,
+            total_steps=20,
+        )
+        row = results[0]
+        assert row["threshold_min"] == 0.15
+        assert row["threshold_max"] == 0.35
+        assert "mean_threshold" in row
+        assert "mean_activation_to_threshold_ratio" in row
+
+
+class TestThresholdConfig:
+    """Phase 3.9: threshold 参数暴露."""
+
+    def test_default_threshold_range_matches_original(self):
+        """默认 threshold 范围和之前硬编码一致."""
+        config = AnivaConfig()
+        assert config.threshold_min == 0.2
+        assert config.threshold_max == 0.4
+
+    def test_custom_threshold_range_used_in_init(self):
+        """自定义 threshold 范围影响 Unit 初始化."""
+        config = AnivaConfig(
+            unit_count=50, seed=0,
+            threshold_min=0.1, threshold_max=0.2,
+        )
+        core = LifeCore(config)
+        for unit in core.units.values():
+            assert 0.1 <= unit.threshold <= 0.2, (
+                f"Unit {unit.uid} threshold={unit.threshold}"
+            )
+
+    def test_threshold_validation(self):
+        """threshold 范围验证."""
+        with pytest.raises(ValueError):
+            AnivaConfig(threshold_min=0.5, threshold_max=0.3)
+
+    def test_metrics_threshold_values_in_range(self):
+        """get_metrics 的 threshold 指标值合法."""
+        config = AnivaConfig(unit_count=20, seed=0, threshold_min=0.15, threshold_max=0.35)
+        core = LifeCore(config)
+        obs = Observer(core)
+        metrics = obs.get_metrics()
+        assert 0.15 <= metrics["mean_threshold"] <= 0.35
+        assert 0.15 <= metrics["min_threshold"] <= 0.35
+        assert 0.15 <= metrics["max_threshold"] <= 0.35
+        assert 0.0 <= metrics["mean_activation_to_threshold_ratio"] <= 1.0
 
 
 class TestObserver:

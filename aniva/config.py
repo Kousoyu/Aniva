@@ -14,8 +14,10 @@ class AnivaConfig:
         seed: 随机种子，用于可复现初始化。
         dt: 模拟时间步长（毫秒级逻辑步）。
         noise_strength: 噪声/扰动强度。
+        energy_consumption_rate: 能量消耗速率（乘 activation 后每单位时间消耗）。
         energy_recovery_rate: 每步能量恢复速率。
-        plasticity_rate: 连接权重变化速率。
+        trace_decay_rate: 历史痕迹衰减速率。
+        plasticity_rate: 连接权重变化速率（后续使用）。
         spatial_radius: 单元分布的立方体空间半径（position 的取值范围）。
     """
 
@@ -25,7 +27,9 @@ class AnivaConfig:
     seed: int = 42
     dt: float = 0.5
     noise_strength: float = 0.01
+    energy_consumption_rate: float = 0.05
     energy_recovery_rate: float = 0.002
+    trace_decay_rate: float = 0.001
     plasticity_rate: float = 0.0001
     spatial_radius: float = 1.0
 

@@ -107,6 +107,186 @@ class TestLifeCoreStep:
             core.step()
 
 
+class TestLifeCoreStepDynamics:
+    """Phase 2: 验证 step() 中的噪声、能量、痕迹机制."""
+
+    def test_activation_changes_after_steps(self):
+        """步进足够多步后，activation 不全是初始值."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=42, noise_strength=0.02))
+        initial_acts = [u.activation for u in core.units.values()]
+        for _ in range(100):
+            core.step()
+        current_acts = [u.activation for u in core.units.values()]
+        # 噪声已作用，至少有些单元的 activation 发生了变化
+        diffs = [abs(a - b) for a, b in zip(initial_acts, current_acts)]
+        assert any(d > 0 for d in diffs), "No units changed activation after steps"
+
+    def test_activation_stays_in_bounds(self):
+        """activation 始终在 [0, 1] 范围内."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0, noise_strength=0.05))
+        for _ in range(200):
+            core.step()
+        for unit in core.units.values():
+            assert 0.0 <= unit.activation <= 1.0, (
+                f"Unit {unit.uid} activation={unit.activation} out of [0, 1]"
+            )
+
+    def test_energy_stays_in_bounds(self):
+        """energy 始终在 [0, 1] 范围内."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0))
+        for _ in range(200):
+            core.step()
+        for unit in core.units.values():
+            assert 0.0 <= unit.energy <= 1.0, (
+                f"Unit {unit.uid} energy={unit.energy} out of [0, 1]"
+            )
+
+    def test_energy_decreases_when_activation_forced_high(self):
+        """当 activation 被人为提高时，energy 会被消耗."""
+        # 使用小规模 + 高消耗率来加速观察
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            energy_consumption_rate=0.1,
+            energy_recovery_rate=0.0,  # 关闭恢复，只看消耗
+            noise_strength=0.0,         # 关闭噪声，排除干扰
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.8
+        unit.energy = 0.5
+        initial_energy = unit.energy
+
+        core.step()
+        assert unit.energy < initial_energy, (
+            f"Energy should decrease when active, was {initial_energy} → {unit.energy}"
+        )
+
+    def test_energy_recovers_when_activation_is_zero(self):
+        """activation 为 0 且无噪声时，energy 应恢复."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            energy_recovery_rate=0.1,
+            energy_consumption_rate=0.0,
+            noise_strength=0.0,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.0
+        unit.energy = 0.3
+        initial_energy = unit.energy
+
+        core.step()
+        assert unit.energy > initial_energy, (
+            f"Energy should recover when idle, was {initial_energy} → {unit.energy}"
+        )
+
+    def test_trace_accumulates_with_activation(self):
+        """trace 随 activation 累积."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            trace_decay_rate=0.0,  # 关闭衰减，只看累积
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.5
+        initial_trace = unit.trace
+
+        for _ in range(10):
+            core.step()
+
+        assert unit.trace > initial_trace, (
+            f"Trace should accumulate: {initial_trace} → {unit.trace}"
+        )
+
+    def test_trace_decays_without_activation(self):
+        """不活跃时 trace 会衰减."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            trace_decay_rate=0.1,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.trace = 1.0
+        unit.activation = 0.0
+
+        core.step()
+        assert unit.trace < 1.0, f"Trace should decay: got {unit.trace}"
+
+    def test_noise_only_changes_activation_not_energy(self):
+        """噪声只扰动 activation，不直接改 energy."""
+        config = AnivaConfig(
+            unit_count=20,
+            seed=0,
+            noise_strength=0.05,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+        )
+        core = LifeCore(config)
+        initial_energies = [u.energy for u in core.units.values()]
+
+        for _ in range(10):
+            core.step()
+
+        current_energies = [u.energy for u in core.units.values()]
+        assert initial_energies == current_energies, (
+            "Energy should not change when consumption and recovery are disabled"
+        )
+
+    def test_seed_determinism_after_steps(self):
+        """相同 seed 运行相同步数后，状态完全一致."""
+        config = AnivaConfig(unit_count=10, seed=99, dt=1.0, noise_strength=0.1)
+        core1 = LifeCore(config)
+        core2 = LifeCore(config)
+
+        for _ in range(50):
+            core1.step()
+            core2.step()
+
+        for uid in core1.units:
+            u1 = core1.units[uid]
+            u2 = core2.units[uid]
+            assert u1.activation == u2.activation, (
+                f"Activation mismatch at unit {uid}: {u1.activation} vs {u2.activation}"
+            )
+            assert u1.energy == u2.energy
+            assert u1.trace == u2.trace
+
+    def test_different_seed_diverges(self):
+        """不同 seed 运行足够步数后，轨迹出现差异."""
+        config1 = AnivaConfig(unit_count=5, seed=1, dt=1.0, noise_strength=0.1)
+        config2 = AnivaConfig(unit_count=5, seed=999, dt=1.0, noise_strength=0.1)
+        core1 = LifeCore(config1)
+        core2 = LifeCore(config2)
+
+        for _ in range(50):
+            core1.step()
+            core2.step()
+
+        acts1 = [u.activation for u in core1.units.values()]
+        acts2 = [u.activation for u in core2.units.values()]
+        assert acts1 != acts2, "Different seeds should produce different trajectories"
+
+    def test_activation_not_all_zero_after_long_run(self):
+        """长时间运行后不仅不会全零，还有非零 activation（噪声保持活性）."""
+        core = LifeCore(AnivaConfig(unit_count=30, seed=123, noise_strength=0.02, dt=1.0))
+        for _ in range(500):
+            core.step()
+        acts = [u.activation for u in core.units.values()]
+        # 有些单元因噪声偏离 0
+        non_zero = sum(1 for a in acts if a > 0.0)
+        assert non_zero > 0, f"Expected some non-zero activations, got all zeros"
+
+
 class TestObserver:
     def test_snapshot_shape(self):
         """快照返回正确的数据形状."""

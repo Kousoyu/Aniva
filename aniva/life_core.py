@@ -10,6 +10,8 @@ from typing import Optional
 from aniva.config import AnivaConfig
 from aniva.core.unit import Unit
 from aniva.core.connection import Connection
+from aniva.core.noise import apply_noise
+from aniva.core.energy import consume_energy, recover_energy
 
 
 class LifeCore:
@@ -88,9 +90,24 @@ class LifeCore:
             self._next_cid += 1
 
     def step(self) -> None:
-        """推进一个时间步。当前版本为骨架，不执行动力学更新。"""
+        """推进一个时间步。
+
+        对每个 Unit 依次执行：
+        1. 噪声扰动 → activation 接受微小随机波动
+        2. 能量消耗 → 活跃消耗能量
+        3. 能量恢复 → 能量缓慢自然恢复
+        4. 痕迹更新 → activation 加深痕迹，痕迹缓慢衰减
+        """
+        dt = self.config.dt
+        cfg = self.config
+        for unit in self.units.values():
+            apply_noise(unit, cfg.noise_strength, dt, self.rng)
+            consume_energy(unit, cfg.energy_consumption_rate, dt)
+            recover_energy(unit, cfg.energy_recovery_rate, dt)
+            # Trace: 活跃加深痕迹，再整体缓慢衰减
+            unit.trace += unit.activation * dt
+            unit.trace *= 1.0 - cfg.trace_decay_rate * dt
         self.step_count += 1
-        # TODO: 第二步实现 — 依次调用 dynamics / energy / noise / plasticity
 
     @property
     def unit_count(self) -> int:

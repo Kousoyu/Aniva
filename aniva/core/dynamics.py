@@ -1,30 +1,40 @@
 """动力学 — 活性流动与单元状态更新规则.
 
-TODO（第二步实现）:
-- update_unit_state: 计算单个单元下一步状态，整合突触输入、局部场、弥散调节。
-- 当前仅定义接口签名，不实现任何逻辑。
+Phase 3: 最小突触传递。
+当前实现：compute_synaptic_input 聚合所有连接的加权输入。
+局部场效应和弥散调节留待后续版本。
 """
 
-import numpy as np
+from collections import defaultdict
 from aniva.core.unit import Unit
 from aniva.core.connection import Connection
 
 
-def update_unit_state(
-    unit: Unit,
-    connected_units: list[Unit],
+def compute_synaptic_input(
     connections: list[Connection],
-    dt: float,
-) -> Unit:
-    """根据所有输入更新一个单元的状态，返回更新后的 Unit。
+    units: dict[int, Unit],
+) -> dict[int, float]:
+    """计算每个单元的突触输入总和。
+
+    两遍法避免顺序依赖：
+    - 第一遍：用所有 connection 的 source 当前 activation 计算 contribution，
+      累加到 per-target input_sum。
+    - 返回 dict，由调用方统一应用到每个 target。
+
+    输入 = Σ(source.activation * connection.weight)，对所有指向 target 的连接。
 
     Args:
-        unit: 当前单元。
-        connected_units: 所有与该单元有连接关系的其他单元。
-        connections: 与该单元相关的连接。
-        dt: 时间步长。
+        connections: 所有连接（只读）。
+        units: uid -> Unit 映射（只读，使用当前 activation）。
 
     Returns:
-        更新后的 Unit（新对象）。
+        dict[target_uid, total_synaptic_input]
     """
-    raise NotImplementedError("Dynamics not yet implemented")
+    input_sum: dict[int, float] = defaultdict(float)
+    for conn in connections:
+        source = units.get(conn.source_id)
+        if source is None:
+            continue
+        contribution = source.activation * conn.weight
+        input_sum[conn.target_id] += contribution
+    return dict(input_sum)

@@ -4,6 +4,7 @@ import pytest
 import numpy as np
 from aniva.config import AnivaConfig
 from aniva.life_core import LifeCore
+from aniva.core.connection import Connection
 from aniva.observer import Observer
 
 
@@ -371,6 +372,173 @@ class TestEnergyFeedback:
         core2 = LifeCore(config)
 
         for _ in range(30):
+            core1.step()
+            core2.step()
+
+        for uid in core1.units:
+            u1 = core1.units[uid]
+            u2 = core2.units[uid]
+            assert u1.activation == u2.activation
+            assert u1.energy == u2.energy
+            assert u1.trace == u2.trace
+
+
+class TestSynapticTransmission:
+    """Phase 3: 最小突触传递——Unit 通过 Connection 互相影响."""
+
+    def test_excitatory_connection_increases_target(self):
+        """兴奋性连接增加 target 的 activation."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            synaptic_strength=0.1,
+            connection_density=0.0,  # 低密度让自动连接很少
+        )
+        core = LifeCore(config)
+        # 清空自动生成的连接，手动创建测试连接
+        core.connections.clear()
+        core.connections.append(Connection(cid=0, source_id=0, target_id=1, weight=0.8))
+        # 设置初始状态
+        core.units[0].activation = 0.5
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.0
+        core.units[1].energy = 1.0
+
+        core.step()
+        # input = 0.5 * 0.8 = 0.4, delta = 0.4 * 0.1 * 1.0 = 0.04
+        assert core.units[1].activation > 0.0, (
+            f"Excitatory connection should increase target activation, got {core.units[1].activation}"
+        )
+
+    def test_inhibitory_connection_decreases_target(self):
+        """抑制性连接降低 target 的 activation."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            synaptic_strength=0.1,
+            connection_density=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(
+            Connection(cid=0, source_id=0, target_id=1, weight=-0.5, is_inhibitory=True)
+        )
+        core.units[0].activation = 0.8
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.5
+        core.units[1].energy = 1.0
+
+        initial_act = core.units[1].activation
+        core.step()
+        # input = 0.8 * -0.5 = -0.4, delta = -0.4 * 0.1 = -0.04
+        assert core.units[1].activation < initial_act, (
+            f"Inhibitory connection should decrease target, {initial_act} → {core.units[1].activation}"
+        )
+
+    def test_multiple_inputs_stack(self):
+        """多个连接输入可以叠加."""
+        config = AnivaConfig(
+            unit_count=3,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            synaptic_strength=0.1,
+            connection_density=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(Connection(cid=0, source_id=0, target_id=2, weight=0.5))
+        core.connections.append(Connection(cid=1, source_id=1, target_id=2, weight=0.3))
+        # 再加一条连接到 unit 2 的抑制连接
+        core.connections.append(
+            Connection(cid=2, source_id=0, target_id=1, weight=-0.2, is_inhibitory=True)
+        )
+
+        core.units[0].activation = 0.5
+        core.units[1].activation = 0.5
+        core.units[2].activation = 0.0
+        for uid in range(3):
+            core.units[uid].energy = 1.0
+
+        core.step()
+        # unit 2: input = 0.5*0.5 + 0.5*0.3 = 0.25+0.15 = 0.4, delta = 0.04
+        # unit 1: input = 0.5*-0.2 = -0.1, delta = -0.01
+        assert core.units[2].activation > 0.0, (
+            f"Stacked inputs should increase activation, got {core.units[2].activation}"
+        )
+        assert core.units[1].activation < 0.5, (
+            f"Inhibitory input should decrease activation, got {core.units[1].activation}"
+        )
+
+    def test_no_connections_no_synaptic_change(self):
+        """无连接且无噪声且关闭代谢时，activation 不应变化."""
+        config = AnivaConfig(
+            unit_count=5,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            min_energy_activation_factor=1.0,  # gate 完全通过
+        )
+        core = LifeCore(config)
+        for unit in core.units.values():
+            unit.activation = 0.3
+            unit.energy = 1.0
+
+        initial_acts = [u.activation for u in core.units.values()]
+        core.step()
+        current_acts = [u.activation for u in core.units.values()]
+        assert initial_acts == current_acts, (
+            "Without connections and noise, activations should not change"
+        )
+
+    def test_activation_stays_in_bounds_with_synaptic(self):
+        """加入突触传递后，activation 仍不越界."""
+        config = AnivaConfig(
+            unit_count=20,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.1,
+            synaptic_strength=0.1,
+        )
+        core = LifeCore(config)
+        # 混合极端值
+        for unit in core.units.values():
+            unit.activation = 1.0 if unit.uid % 2 == 0 else 0.0
+            unit.energy = 1.0
+
+        for _ in range(100):
+            core.step()
+            for unit in core.units.values():
+                assert 0.0 <= unit.activation <= 1.0, (
+                    f"Unit {unit.uid} activation={unit.activation}"
+                )
+
+    def test_synaptic_seed_determinism(self):
+        """加入突触传递后，相同 seed 仍然可复现."""
+        config = AnivaConfig(
+            unit_count=10,
+            seed=77,
+            dt=1.0,
+            noise_strength=0.05,
+            synaptic_strength=0.1,
+        )
+        core1 = LifeCore(config)
+        core2 = LifeCore(config)
+
+        for _ in range(50):
             core1.step()
             core2.step()
 

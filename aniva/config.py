@@ -19,6 +19,7 @@ class AnivaConfig:
         trace_decay_rate: 历史痕迹衰减速率。
         min_energy_activation_factor: 能量对 activation 的最低调制因子。
             energy=1 时 factor≈1（无压制），energy=0 时 factor=此值（最大压制但非零）。
+        synaptic_strength: 突触传递强度，控制连接输入对 activation 的影响幅度。
         plasticity_rate: 连接权重变化速率（后续使用）。
         spatial_radius: 单元分布的立方体空间半径（position 的取值范围）。
     """
@@ -33,15 +34,16 @@ class AnivaConfig:
     energy_recovery_rate: float = 0.002
     trace_decay_rate: float = 0.001
     min_energy_activation_factor: float = 0.25
+    synaptic_strength: float = 0.05
     plasticity_rate: float = 0.0001
     spatial_radius: float = 1.0
 
     def __post_init__(self):
         if self.unit_count < 1:
             raise ValueError(f"unit_count must be >= 1, got {self.unit_count}")
-        if not 0.0 < self.connection_density <= 1.0:
+        if not 0.0 <= self.connection_density <= 1.0:
             raise ValueError(
-                f"connection_density must be in (0, 1], got {self.connection_density}"
+                f"connection_density must be in [0, 1], got {self.connection_density}"
             )
         if not 0.0 <= self.exc_inh_ratio <= 1.0:
             raise ValueError(

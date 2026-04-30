@@ -12,6 +12,7 @@ from aniva.core.unit import Unit
 from aniva.core.connection import Connection
 from aniva.core.noise import apply_noise
 from aniva.core.energy import consume_energy, recover_energy
+from aniva.core.dynamics import compute_synaptic_input
 
 
 class LifeCore:
@@ -93,6 +94,7 @@ class LifeCore:
         """推进一个时间步。
 
         对每个 Unit 依次执行：
+        0. 突触输入 → 所有 connection 的加权信号聚合到 target
         1. 噪声扰动 → activation 接受微小随机波动
         2. 能量门控 → energy 越低 activation 越被压低（代谢闭环）
         3. 能量消耗 → 活跃消耗能量
@@ -101,6 +103,15 @@ class LifeCore:
         """
         dt = self.config.dt
         cfg = self.config
+
+        # 0. 突触传递：先计算所有输入，再统一应用（避免顺序依赖）
+        synaptic_inputs = compute_synaptic_input(self.connections, self.units)
+        for uid, inp in synaptic_inputs.items():
+            unit = self.units.get(uid)
+            if unit is not None:
+                unit.activation += inp * cfg.synaptic_strength * dt
+                unit.activation = max(0.0, min(1.0, unit.activation))
+
         for unit in self.units.values():
             apply_noise(unit, cfg.noise_strength, dt, self.rng)
             # 能量反馈：energy 越低 → activation 越被压低

@@ -32,7 +32,7 @@ class AnivaConfig:
 
     unit_count: int = 300
     connection_density: float = 0.05
-    exc_inh_ratio: float = 0.8
+    exc_inh_ratio: float = 0.5
     seed: int = 42
     dt: float = 0.5
     noise_strength: float = 0.01
@@ -40,7 +40,7 @@ class AnivaConfig:
     energy_recovery_rate: float = 0.008
     trace_decay_rate: float = 0.001
     min_energy_activation_factor: float = 0.25
-    synaptic_strength: float = 0.05
+    synaptic_strength: float = 0.30
     baseline_activity: float = 0.05
     leak_rate: float = 0.02
     threshold_min: float = 0.2

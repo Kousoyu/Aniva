@@ -1753,6 +1753,74 @@ class TestNetworkBoundaryDiagnostics:
             _sys.argv = _argv_backup
 
 
+class TestDefaultParameterCalibration:
+    """Phase 3.19: 默认参数校准验证 — cd=0.05, eir=0.50, ss=0.30."""
+
+    def test_default_exc_inh_ratio_is_0_5(self):
+        """默认 exc_inh_ratio 应为 0.50."""
+        assert AnivaConfig.exc_inh_ratio == 0.5, (
+            f"Expected 0.50, got {AnivaConfig.exc_inh_ratio}"
+        )
+
+    def test_default_synaptic_strength_is_0_3(self):
+        """默认 synaptic_strength 应为 0.30."""
+        assert AnivaConfig.synaptic_strength == 0.30, (
+            f"Expected 0.30, got {AnivaConfig.synaptic_strength}"
+        )
+
+    def test_default_params_no_explosion(self):
+        """默认参数运行 1000 步不应爆燃."""
+        config = AnivaConfig(unit_count=300, seed=42)
+        core = LifeCore(config)
+        obs = Observer(core)
+        for _ in range(1000):
+            core.step()
+        metrics = obs.get_metrics()
+        assert metrics["mean_activation"] < 0.8, (
+            f"Default params should not explode, mean_act={metrics['mean_activation']}"
+        )
+        assert metrics["mean_energy"] > 0.25, (
+            f"Default params should have healthy energy, mean_energy={metrics['mean_energy']}"
+        )
+
+    def test_default_params_has_strong_output(self):
+        """默认参数下应有非零 strong_output_ratio."""
+        config = AnivaConfig(unit_count=300, seed=42)
+        core = LifeCore(config)
+        obs = Observer(core)
+        for _ in range(1000):
+            core.step()
+        metrics = obs.get_metrics()
+        assert metrics["strong_output_ratio"] > 0.05, (
+            f"Default params should have meaningful strong output, "
+            f"got {metrics['strong_output_ratio']}"
+        )
+
+    def test_default_params_not_near_100_percent(self):
+        """默认参数下 hard_active_ratio 不应接近 100%."""
+        config = AnivaConfig(unit_count=300, seed=42)
+        core = LifeCore(config)
+        obs = Observer(core)
+        for _ in range(1000):
+            core.step()
+        metrics = obs.get_metrics()
+        assert metrics["hard_active_ratio"] < 0.8, (
+            f"Default params should not saturate, hard_active={metrics['hard_active_ratio']}"
+        )
+
+    def test_default_params_seed_determinism(self):
+        """默认参数下相同 seed 可复现."""
+        config = AnivaConfig(unit_count=50, seed=99)
+        core1 = LifeCore(config)
+        core2 = LifeCore(config)
+        for _ in range(100):
+            core1.step()
+            core2.step()
+        for uid in core1.units:
+            assert core1.units[uid].activation == core2.units[uid].activation
+            assert core1.units[uid].energy == core2.units[uid].energy
+
+
 class TestThresholdConfig:
     """Phase 3.9: threshold 参数暴露."""
 

@@ -100,16 +100,29 @@ Max 的终极愿景不是做一个工具，而是：
 
 ## 当前状态
 
-**版本：** v0.0.0.1（尚未开始编码）
+**版本：** v0.0.0.1
 
-**已完成：**
+**已完成 (`NEXT_STEPS.md` / `EXPERIMENT_LOG.md`)：**
 - 项目命名：Aniva（主项目）、Nerva（未来 runtime 代号）
 - 愿景定义：`VISION.md`
 - 架构设计：`ARCHITECTURE.md`
-- 所有核心决策已定
+- 核心动力学搭建：Unit, Connection, Dynamics, Noise, Energy, Leak, Trace, Threshold
+- 软阈值 (sigmoid)、能量 gate、synaptic response saturation
+- 网络边界诊断 + E/I 平衡细扫 + 多 seed 验证
+- 默认参数校准：5/5 seed 进入稳定中间动力学状态
+- Observer / 指标系统、参数扫描工具
+- 测试：116/116 passed
+
+**尚未实现：**
+- Environment (刺激源)
+- Plasticity (连接变化)
+- 局部场效应
+- 弥散调节
+- Visualizer (可视化)
+- 状态保存/加载
 
 **下一步：**
-- 见 `NEXT_STEPS.md`
+- Phase 4.0：点刺激环境接口
 
 ---
 

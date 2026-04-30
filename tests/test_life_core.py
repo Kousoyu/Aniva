@@ -6,6 +6,7 @@ from aniva.config import AnivaConfig
 from aniva.life_core import LifeCore
 from aniva.core.connection import Connection
 from aniva.observer import Observer
+from aniva.experiments import exp1_free_run
 
 
 class TestLifeCoreInit:
@@ -728,6 +729,76 @@ class TestLeakAndThreshold:
             assert u1.activation == u2.activation
             assert u1.energy == u2.energy
             assert u1.trace == u2.trace
+
+
+class TestObserverMetrics:
+    """Phase 3.6: Observer get_metrics() 验证."""
+
+    def test_metrics_has_required_fields(self):
+        """get_metrics() 返回所有期望字段."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0))
+        obs = Observer(core)
+        metrics = obs.get_metrics()
+        expected_fields = {
+            "step", "mean_activation", "max_activation", "min_activation",
+            "mean_energy", "min_energy", "mean_trace", "active_unit_ratio",
+        }
+        assert expected_fields.issubset(metrics.keys()), (
+            f"Missing fields: {expected_fields - metrics.keys()}"
+        )
+
+    def test_metrics_types_correct(self):
+        """字段类型正确."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0))
+        obs = Observer(core)
+        metrics = obs.get_metrics()
+        assert isinstance(metrics["step"], int)
+        assert isinstance(metrics["mean_activation"], float)
+        assert isinstance(metrics["max_activation"], float)
+        assert isinstance(metrics["min_activation"], float)
+        assert isinstance(metrics["mean_energy"], float)
+        assert isinstance(metrics["min_energy"], float)
+        assert isinstance(metrics["mean_trace"], float)
+        assert isinstance(metrics["active_unit_ratio"], float)
+
+    def test_active_unit_ratio_in_range(self):
+        """active_unit_ratio 在 [0, 1] 范围内."""
+        core = LifeCore(AnivaConfig(unit_count=30, seed=0))
+        obs = Observer(core)
+        for _ in range(10):
+            core.step()
+        metrics = obs.get_metrics()
+        assert 0.0 <= metrics["active_unit_ratio"] <= 1.0, (
+            f"active_unit_ratio={metrics['active_unit_ratio']}"
+        )
+
+
+class TestExp1FreeRun:
+    """Phase 3.6: 实验 1 自由运行."""
+
+    def test_free_run_completes_without_error(self):
+        """自由运行有限步不报错."""
+        config = AnivaConfig(unit_count=10, seed=0, dt=1.0)
+        result = exp1_free_run.run(config=config, total_steps=50, report_interval=100)
+        assert result["total_steps"] == 50
+        assert len(result["history"]) == 50
+        assert "final_metrics" in result
+
+    def test_free_run_seed_determinism(self):
+        """相同 seed 的自由运行结果一致."""
+        config = AnivaConfig(unit_count=10, seed=77, dt=1.0)
+        r1 = exp1_free_run.run(config=config, total_steps=30, report_interval=100)
+        r2 = exp1_free_run.run(config=config, total_steps=30, report_interval=100)
+        for i, (m1, m2) in enumerate(zip(r1["history"], r2["history"])):
+            assert m1 == m2, (
+                f"Metrics diverge at step {i}: {m1} vs {m2}"
+            )
+
+    def test_free_run_default_config(self):
+        """默认配置下的自由运行不报错."""
+        result = exp1_free_run.run(total_steps=100, report_interval=100)
+        assert result["total_steps"] == 100
+        assert len(result["history"]) == 100
 
 
 class TestObserver:

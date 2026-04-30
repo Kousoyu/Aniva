@@ -626,11 +626,11 @@ class TestSynapticDiagnostics:
 
         obs = Observer(core)
         metrics = obs.get_metrics()
-        # effective_output = 0.6 - 0.2 = 0.4, contribution = 0.4*0.8 = 0.32
+        # sigmoid((0.6-0.2)/0.05)=sigmoid(8)≈1.0, output≈0.6, contribution≈0.48
         assert metrics["mean_abs_synaptic_input"] > 0.0, (
             f"Expected synaptic input > 0, got {metrics['mean_abs_synaptic_input']}"
         )
-        assert metrics["max_abs_synaptic_input"] == pytest.approx(0.32)
+        assert metrics["max_abs_synaptic_input"] == pytest.approx(0.48, rel=0.05)
         assert metrics["synaptic_target_ratio"] > 0.0
 
     def test_sweep_output_includes_synaptic_fields(self):
@@ -649,6 +649,93 @@ class TestSynapticDiagnostics:
             "mean_abs_synaptic_input", "max_abs_synaptic_input", "synaptic_target_ratio",
         ]:
             assert field in row, f"Missing synaptic field in sweep: {field}"
+
+    def test_soft_threshold_below_produces_tiny_output(self):
+        """低于 threshold 仍有极弱但非零的 effective_output."""
+        config = AnivaConfig(
+            unit_count=5, seed=0,
+            connection_density=0.0,
+            noise_strength=0.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+            threshold_softness=0.05,
+        )
+        core = LifeCore(config)
+        obs = Observer(core)
+        core.units[0].activation = 0.05
+        core.units[0].threshold = 0.2
+        metrics = obs.get_metrics()
+        # sigmoid((0.05-0.2)/0.05)=sigmoid(-3)≈0.047, output=0.05*0.047≈0.0024
+        assert metrics["mean_effective_output"] > 0.0, (
+            "Soft threshold should allow sub-threshold output"
+        )
+        assert metrics["mean_effective_output"] < 0.01, (
+            f"Sub-threshold output should be tiny, got {metrics['mean_effective_output']}"
+        )
+
+    def test_softness_smaller_is_harder(self):
+        """threshold_softness 越小越接近硬阈值."""
+        config = AnivaConfig(
+            unit_count=5, seed=0,
+            connection_density=0.0,
+            noise_strength=0.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+            threshold_softness=0.001,  # 极硬
+        )
+        core = LifeCore(config)
+        obs = Observer(core)
+        core.units[0].activation = 0.15
+        core.units[0].threshold = 0.2
+        metrics = obs.get_metrics()
+        # (0.15-0.2)/0.001=-50, sigmoid(-50)≈1.9e-22, output≈0
+        assert metrics["mean_effective_output"] < 1e-6, (
+            f"Hard-like softness should suppress deep sub-threshold output, "
+            f"got {metrics['mean_effective_output']}"
+        )
+
+    def test_effective_output_never_exceeds_activation(self):
+        """effective_output 不超过 source activation."""
+        config = AnivaConfig(
+            unit_count=5, seed=0,
+            connection_density=0.0,
+            noise_strength=0.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        obs = Observer(core)
+        # 混合各种 activation 水平
+        for uid, unit in core.units.items():
+            unit.activation = uid / 5.0  # 0.0, 0.2, 0.4, 0.6, 0.8
+        metrics = obs.get_metrics()
+        assert metrics["max_effective_output"] <= metrics["max_activation"], (
+            f"effective_output must not exceed activation: "
+            f"{metrics['max_effective_output']} > {metrics['max_activation']}"
+        )
+
+    def test_default_softness_config_value(self):
+        """threshold_softness 默认值正确."""
+        cfg = AnivaConfig()
+        assert cfg.threshold_softness == 0.02
+
+    def test_default_softness_stable_no_explosion(self):
+        """默认 softness=0.02 下 1000 步不爆燃."""
+        config = AnivaConfig(unit_count=300, seed=42)
+        core = LifeCore(config)
+        obs = Observer(core)
+        for _ in range(1000):
+            core.step()
+        metrics = obs.get_metrics()
+        assert metrics["mean_activation"] < 0.8, (
+            f"Default softness should not explode: mean_act={metrics['mean_activation']}"
+        )
+        assert metrics["mean_energy"] > 0.05, (
+            f"Default softness should not drain energy: mean_energy={metrics['mean_energy']}"
+        )
+        assert metrics["mean_abs_synaptic_input"] > 0.0, (
+            "Default softness should allow some synaptic conduction"
+        )
 
 
 class TestSynapticTransmission:
@@ -907,8 +994,8 @@ class TestLeakAndThreshold:
             f"fast={u_fast.activation}, slow={u_slow.activation}"
         )
 
-    def test_source_below_threshold_no_synaptic_effect(self):
-        """source 低于 threshold 时，不影响 target."""
+    def test_source_below_threshold_produces_weak_output(self):
+        """source 低于 threshold 时，soft threshold 仍有极弱输出."""
         config = AnivaConfig(
             unit_count=2,
             seed=0,
@@ -921,20 +1008,25 @@ class TestLeakAndThreshold:
             synaptic_strength=0.1,
             baseline_activity=0.0,
             leak_rate=0.0,
+            threshold_softness=0.05,
         )
         core = LifeCore(config)
         core.connections.clear()
         core.connections.append(Connection(cid=0, source_id=0, target_id=1, weight=0.8))
-        core.units[0].activation = 0.1   # 低于 threshold
+        core.units[0].activation = 0.1   # 低于 threshold=0.3
         core.units[0].threshold = 0.3
         core.units[0].energy = 1.0
         core.units[1].activation = 0.0
         core.units[1].energy = 1.0
 
         core.step()
-        # effective_output = max(0, 0.1-0.3) = 0 → no synaptic contribution
-        assert core.units[1].activation == 0.0, (
-            f"Below-threshold source should not affect target, got {core.units[1].activation}"
+        # sigmoid((0.1-0.3)/0.05)=sigmoid(-4)≈0.018, effective_output=0.1*0.018≈0.0018
+        # contribution=0.0018*0.8=0.00144, delta≈0.000144
+        assert core.units[1].activation > 0.0, (
+            f"Soft threshold: even below threshold should have weak output"
+        )
+        assert core.units[1].activation < 0.001, (
+            f"Below-threshold output should be very small, got {core.units[1].activation}"
         )
 
     def test_source_above_threshold_affects_target(self):
@@ -962,8 +1054,7 @@ class TestLeakAndThreshold:
         core.units[1].energy = 1.0
 
         core.step()
-        # effective_output = max(0, 0.8-0.3) = 0.5, contribution = 0.5*0.5 = 0.25
-        # delta = 0.25 * 0.1 * 1.0 = 0.025
+        # sigmoid((0.8-0.3)/0.05)=sigmoid(10)≈1.0 → output≈0.8 → delta≈0.04
         assert core.units[1].activation > 0.0, (
             f"Above-threshold source should affect target, got {core.units[1].activation}"
         )
@@ -1288,6 +1379,48 @@ class TestEnergyGateDiagnostics:
             _sys.argv = ["exp1_parameter_sweep.py",
                          "--leak-rate", "0.0", "0.05", "0.1",
                          "--energy-factor", "0.25",
+                         "--noise", "0.01", "--baseline", "0.05",
+                         "--synaptic", "0.05", "--seeds", "1",
+                         "--unit-count", "5", "--steps", "10"]
+            exit_code = exp1_parameter_sweep.main()
+            assert exit_code == 0
+        finally:
+            _sys.argv = _argv_backup
+
+    def test_sweep_threshold_softness_values_recorded(self):
+        """sweep 结果记录 threshold_softness."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            threshold_softnesses=[0.01, 0.05],
+            unit_count=5,
+            total_steps=10,
+        )
+        assert len(results) == 2
+        ts_values = {r["threshold_softness"] for r in results}
+        assert ts_values == {0.01, 0.05}
+
+    def test_sweep_default_softness_is_config_default(self):
+        """不指定 threshold_softness 时使用 AnivaConfig 默认值."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            unit_count=5,
+            total_steps=10,
+        )
+        assert results[0]["threshold_softness"] == AnivaConfig.threshold_softness
+
+    def test_cli_threshold_softness_arg(self):
+        """CLI --threshold-softness 参数传递正确."""
+        import sys as _sys
+        _argv_backup = _sys.argv
+        try:
+            _sys.argv = ["exp1_parameter_sweep.py",
+                         "--threshold-softness", "0.005", "0.01", "0.05",
                          "--noise", "0.01", "--baseline", "0.05",
                          "--synaptic", "0.05", "--seeds", "1",
                          "--unit-count", "5", "--steps", "10"]

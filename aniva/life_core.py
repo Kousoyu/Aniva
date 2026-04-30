@@ -108,7 +108,7 @@ class LifeCore:
 
         # 0. 突触传递：先计算所有输入，再统一应用（避免顺序依赖）
         #    target 的 energy 调制其对输入的响应强度
-        synaptic_inputs = compute_synaptic_input(self.connections, self.units)
+        synaptic_inputs = compute_synaptic_input(self.connections, self.units, cfg.threshold_softness)
         for uid, inp in synaptic_inputs.items():
             unit = self.units.get(uid)
             if unit is not None:

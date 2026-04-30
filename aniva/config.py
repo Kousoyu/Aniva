@@ -24,6 +24,8 @@ class AnivaConfig:
         leak_rate: activation 向 baseline 回落的速率。
         threshold_min: Unit 初始 threshold 下限。
         threshold_max: Unit 初始 threshold 上限。
+        threshold_softness: 突触输出软阈值宽度。越小越接近硬阈值。
+            sigmoid((activation - threshold) / softness) 控制输出平滑度。
         plasticity_rate: 连接权重变化速率（后续使用）。
         spatial_radius: 单元分布的立方体空间半径（position 的取值范围）。
     """
@@ -43,6 +45,7 @@ class AnivaConfig:
     leak_rate: float = 0.02
     threshold_min: float = 0.2
     threshold_max: float = 0.4
+    threshold_softness: float = 0.02
     plasticity_rate: float = 0.0001
     spatial_radius: float = 1.0
 

@@ -58,10 +58,14 @@ class Observer:
         mean_act = float(np.mean(activations))
         mean_thresh = float(np.mean(thresholds))
 
-        # 突触诊断：当前状态下网络的传导情况
-        effective_outputs = np.maximum(0.0, activations - thresholds)
-        source_active_mask = effective_outputs > 0.0
-        syn_inputs = compute_synaptic_input(self._core.connections, self._core.units)
+        # 突触诊断：当前状态下网络的传导情况（使用软阈值）
+        softness = self._core.config.threshold_softness
+        x = (activations - thresholds) / softness
+        x = np.clip(x, -60.0, 60.0)
+        gate = 1.0 / (1.0 + np.exp(-x))
+        effective_outputs = activations * gate
+        source_active_mask = effective_outputs > 1e-8
+        syn_inputs = compute_synaptic_input(self._core.connections, self._core.units, self._core.config.threshold_softness)
         syn_values = np.array(list(syn_inputs.values())) if syn_inputs else np.array([])
         abs_syn = np.abs(syn_values) if len(syn_values) > 0 else syn_values
 

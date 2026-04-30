@@ -1,5 +1,7 @@
 """LifeCore 测试."""
 
+import os
+import tempfile
 import pytest
 import numpy as np
 from aniva.config import AnivaConfig
@@ -799,6 +801,47 @@ class TestExp1FreeRun:
         result = exp1_free_run.run(total_steps=100, report_interval=100)
         assert result["total_steps"] == 100
         assert len(result["history"]) == 100
+
+
+class TestExp1CLI:
+    """Phase 3.7: 命令行接口和 CSV 导出."""
+
+    def test_main_default_args(self):
+        """默认参数下 main() 不报错."""
+        exit_code = exp1_free_run.main(
+            argv=["--steps", "20", "--report-interval", "100", "--unit-count", "5"]
+        )
+        assert exit_code == 0
+
+    def test_main_steps_controls_total(self):
+        """--steps 控制总步数（通过 run() 间接验证）."""
+        result = exp1_free_run.run(
+            config=AnivaConfig(unit_count=5, seed=0),
+            total_steps=30,
+            report_interval=100,
+        )
+        assert result["total_steps"] == 30
+        assert len(result["history"]) == 30
+
+    def test_csv_output_created(self):
+        """--output-csv 生成 CSV 文件且行数正确."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            csv_path = os.path.join(tmpdir, "out.csv")
+            exit_code = exp1_free_run.main(
+                argv=[
+                    "--steps", "50",
+                    "--unit-count", "5",
+                    "--report-interval", "100",
+                    "--seed", "1",
+                    "--output-csv", csv_path,
+                ]
+            )
+            assert exit_code == 0
+            assert os.path.exists(csv_path)
+            with open(csv_path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            # header + 50 data rows
+            assert len(lines) == 51
 
 
 class TestObserver:

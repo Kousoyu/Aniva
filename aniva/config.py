@@ -1,0 +1,44 @@
+"""全局配置 — 所有可调参数的集中定义."""
+
+from dataclasses import dataclass
+
+
+@dataclass
+class AnivaConfig:
+    """Aniva 生命核的全局配置。
+
+    Attributes:
+        unit_count: 活性单元总数。
+        connection_density: 连接密度 (0, 1]，每个单元平均连接 = unit_count * density。
+        exc_inh_ratio: 兴奋性连接占比，其余为抑制性。
+        seed: 随机种子，用于可复现初始化。
+        dt: 模拟时间步长（毫秒级逻辑步）。
+        noise_strength: 噪声/扰动强度。
+        energy_recovery_rate: 每步能量恢复速率。
+        plasticity_rate: 连接权重变化速率。
+        spatial_radius: 单元分布的立方体空间半径（position 的取值范围）。
+    """
+
+    unit_count: int = 300
+    connection_density: float = 0.05
+    exc_inh_ratio: float = 0.8
+    seed: int = 42
+    dt: float = 0.5
+    noise_strength: float = 0.01
+    energy_recovery_rate: float = 0.002
+    plasticity_rate: float = 0.0001
+    spatial_radius: float = 1.0
+
+    def __post_init__(self):
+        if self.unit_count < 1:
+            raise ValueError(f"unit_count must be >= 1, got {self.unit_count}")
+        if not 0.0 < self.connection_density <= 1.0:
+            raise ValueError(
+                f"connection_density must be in (0, 1], got {self.connection_density}"
+            )
+        if not 0.0 <= self.exc_inh_ratio <= 1.0:
+            raise ValueError(
+                f"exc_inh_ratio must be in [0, 1], got {self.exc_inh_ratio}"
+            )
+        if self.dt <= 0.0:
+            raise ValueError(f"dt must be positive, got {self.dt}")

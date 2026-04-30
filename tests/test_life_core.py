@@ -869,6 +869,7 @@ class TestParameterSweep:
         row = results[0]
         for key in [
             "noise_strength", "baseline_activity", "synaptic_strength", "seed",
+            "min_energy_activation_factor", "leak_rate",
             "mean_activation", "max_activation", "mean_energy", "min_energy",
             "mean_trace", "active_unit_ratio",
         ]:
@@ -927,6 +928,113 @@ class TestParameterSweep:
         assert row["threshold_max"] == 0.35
         assert "mean_threshold" in row
         assert "mean_activation_to_threshold_ratio" in row
+
+
+class TestEnergyGateDiagnostics:
+    """Phase 3.10: energy gate 诊断扫描."""
+
+    def test_sweep_energy_factor_values_recorded(self):
+        """sweep 结果记录 min_energy_activation_factor 和 leak_rate."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            min_energy_activation_factors=[0.1, 0.5],
+            leak_rates=[0.01],
+            unit_count=5,
+            total_steps=20,
+        )
+        assert len(results) == 2
+        eaf_values = {r["min_energy_activation_factor"] for r in results}
+        assert eaf_values == {0.1, 0.5}
+        for r in results:
+            assert r["leak_rate"] == 0.01
+
+    def test_sweep_leak_rate_values_recorded(self):
+        """sweep 结果记录不同 leak_rate."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            min_energy_activation_factors=[0.25],
+            leak_rates=[0.0, 0.05, 0.1],
+            unit_count=5,
+            total_steps=20,
+        )
+        assert len(results) == 3
+        lr_values = {r["leak_rate"] for r in results}
+        assert lr_values == {0.0, 0.05, 0.1}
+
+    def test_sweep_default_energy_factor_is_config_default(self):
+        """不指定 energy_factor 时使用 AnivaConfig 默认值."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            unit_count=5,
+            total_steps=10,
+        )
+        assert results[0]["min_energy_activation_factor"] == AnivaConfig.min_energy_activation_factor
+        assert results[0]["leak_rate"] == AnivaConfig.leak_rate
+
+    def test_sweep_determinism_with_new_params(self):
+        """energy_factor + leak_rate 扫描也保证确定性."""
+        results1 = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1, 2],
+            min_energy_activation_factors=[0.25, 0.5],
+            leak_rates=[0.01, 0.05],
+            unit_count=5,
+            total_steps=20,
+        )
+        results2 = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1, 2],
+            min_energy_activation_factors=[0.25, 0.5],
+            leak_rates=[0.01, 0.05],
+            unit_count=5,
+            total_steps=20,
+        )
+        assert results1 == results2
+
+    def test_cli_energy_factor_arg(self):
+        """CLI --energy-factor 参数传递正确."""
+        import sys as _sys
+        _argv_backup = _sys.argv
+        try:
+            _sys.argv = ["exp1_parameter_sweep.py",
+                         "--energy-factor", "0.1", "0.5", "0.9",
+                         "--leak-rate", "0.0",
+                         "--noise", "0.01", "--baseline", "0.05",
+                         "--synaptic", "0.05", "--seeds", "1",
+                         "--unit-count", "5", "--steps", "10"]
+            exit_code = exp1_parameter_sweep.main()
+            assert exit_code == 0
+        finally:
+            _sys.argv = _argv_backup
+
+    def test_cli_leak_rate_arg(self):
+        """CLI --leak-rate 参数传递正确."""
+        import sys as _sys
+        _argv_backup = _sys.argv
+        try:
+            _sys.argv = ["exp1_parameter_sweep.py",
+                         "--leak-rate", "0.0", "0.05", "0.1",
+                         "--energy-factor", "0.25",
+                         "--noise", "0.01", "--baseline", "0.05",
+                         "--synaptic", "0.05", "--seeds", "1",
+                         "--unit-count", "5", "--steps", "10"]
+            exit_code = exp1_parameter_sweep.main()
+            assert exit_code == 0
+        finally:
+            _sys.argv = _argv_backup
 
 
 class TestThresholdConfig:

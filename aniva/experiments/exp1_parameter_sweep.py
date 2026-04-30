@@ -21,6 +21,8 @@ def sweep(
     seeds: list[int],
     threshold_mins: list[float] | None = None,
     threshold_maxs: list[float] | None = None,
+    min_energy_activation_factors: list[float] | None = None,
+    leak_rates: list[float] | None = None,
     unit_count: int = 30,
     total_steps: int = 500,
 ) -> list[dict[str, Any]]:
@@ -33,6 +35,8 @@ def sweep(
         seeds: 要测试的随机种子列表。
         threshold_mins: threshold_min 值列表，None 则用默认值。
         threshold_maxs: threshold_max 值列表，None 则用默认值。
+        min_energy_activation_factors: min_energy_activation_factor 值列表，None 则用默认值。
+        leak_rates: leak_rate 值列表，None 则用默认值。
         unit_count: 每组使用的单元数。
         total_steps: 每组运行的总步数。
 
@@ -43,11 +47,16 @@ def sweep(
         threshold_mins = [AnivaConfig.threshold_min]
     if threshold_maxs is None:
         threshold_maxs = [AnivaConfig.threshold_max]
+    if min_energy_activation_factors is None:
+        min_energy_activation_factors = [AnivaConfig.min_energy_activation_factor]
+    if leak_rates is None:
+        leak_rates = [AnivaConfig.leak_rate]
 
     results: list[dict[str, Any]] = []
-    for ns, ba, ss, seed, tmin, tmax in itertools.product(
+    for ns, ba, ss, seed, tmin, tmax, eaf, lr in itertools.product(
         noise_strengths, baseline_activities, synaptic_strengths,
         seeds, threshold_mins, threshold_maxs,
+        min_energy_activation_factors, leak_rates,
     ):
         if tmin > tmax:
             continue
@@ -60,6 +69,8 @@ def sweep(
             synaptic_strength=ss,
             threshold_min=tmin,
             threshold_max=tmax,
+            min_energy_activation_factor=eaf,
+            leak_rate=lr,
         )
         result = run(config=config, total_steps=total_steps, report_interval=total_steps + 1)
         fm = result["final_metrics"]
@@ -70,6 +81,8 @@ def sweep(
             "seed": seed,
             "threshold_min": tmin,
             "threshold_max": tmax,
+            "min_energy_activation_factor": eaf,
+            "leak_rate": lr,
             "mean_activation": fm["mean_activation"],
             "max_activation": fm["max_activation"],
             "mean_energy": fm["mean_energy"],
@@ -129,6 +142,14 @@ def main(argv: list[str] | None = None) -> int:
         help="threshold_max 值列表（默认 0.4）"
     )
     parser.add_argument(
+        "--energy-factor", type=float, nargs="+", default=None,
+        help="min_energy_activation_factor 值列表（默认 0.25）"
+    )
+    parser.add_argument(
+        "--leak-rate", type=float, nargs="+", default=None,
+        help="leak_rate 值列表（默认 0.02）"
+    )
+    parser.add_argument(
         "--output-csv", type=str, default=None,
         help="保存结果到 CSV 文件"
     )
@@ -141,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
         seeds=args.seeds,
         threshold_mins=args.threshold_min,
         threshold_maxs=args.threshold_max,
+        min_energy_activation_factors=args.energy_factor,
+        leak_rates=args.leak_rate,
         unit_count=args.unit_count,
         total_steps=args.steps,
     )

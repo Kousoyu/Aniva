@@ -938,6 +938,185 @@ class TestSynapticTransmission:
             assert u1.trace == u2.trace
 
 
+class TestSynapticSaturation:
+    """Phase 3.17: 突触响应饱和 — 符号分离软边界."""
+
+    def test_excitation_weaker_near_ceiling(self):
+        """activation 接近 1 时，兴奋输入增幅很小."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            synaptic_strength=0.1,
+            min_energy_activation_factor=1.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(Connection(cid=0, source_id=0, target_id=1, weight=0.8))
+        core.units[0].activation = 0.5
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.95  # 接近天花板
+        core.units[1].energy = 1.0
+
+        core.step()
+        # raw_delta ≈ 0.4 * 0.1 * 1.0 * 1.0 = 0.04
+        # delta = 0.04 * (1 - 0.95) = 0.04 * 0.05 = 0.002
+        expected = 0.95 + 0.002  # = 0.952
+        assert core.units[1].activation == pytest.approx(expected, abs=1e-6), (
+            f"Near ceiling: saturation should limit excitation, got {core.units[1].activation}"
+        )
+        assert core.units[1].activation <= 0.955, "Should stay near ceiling, not jump"
+
+    def test_excitation_stronger_near_floor(self):
+        """activation 低时，兴奋输入几乎不受限."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            synaptic_strength=0.1,
+            min_energy_activation_factor=1.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(Connection(cid=0, source_id=0, target_id=1, weight=0.8))
+        core.units[0].activation = 0.5
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.0
+        core.units[1].energy = 1.0
+
+        core.step()
+        # raw_delta ≈ 0.04, delta = 0.04 * (1 - 0) = 0.04
+        expected = 0.04
+        assert core.units[1].activation == pytest.approx(expected, abs=1e-6), (
+            f"Near floor: saturation should allow full excitation, got {core.units[1].activation}"
+        )
+
+    def test_inhibition_still_effective_at_high_activation(self):
+        """activation 高时，抑制几乎完全生效."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            synaptic_strength=0.1,
+            min_energy_activation_factor=1.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(
+            Connection(cid=0, source_id=0, target_id=1, weight=-0.5, is_inhibitory=True)
+        )
+        core.units[0].activation = 0.8
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.9
+        core.units[1].energy = 1.0
+
+        core.step()
+        # raw_delta = -0.4 * 0.1 = -0.04
+        # delta = -0.04 * 0.9 = -0.036
+        expected = 0.9 - 0.036  # = 0.864
+        assert core.units[1].activation == pytest.approx(expected, abs=1e-6), (
+            f"High activation: inhibition should be near-full, got {core.units[1].activation}"
+        )
+        # 抑制在高 activation 时不应该被削弱到 < 80% 的效果
+        assert core.units[1].activation < 0.87, (
+            "Inhibition at high activation should not be crippled"
+        )
+
+    def test_inhibition_saturated_near_floor(self):
+        """activation 接近 0 时，抑制几乎无效（地板效应）."""
+        config = AnivaConfig(
+            unit_count=2,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
+            synaptic_strength=0.1,
+            min_energy_activation_factor=1.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(
+            Connection(cid=0, source_id=0, target_id=1, weight=-0.5, is_inhibitory=True)
+        )
+        core.units[0].activation = 0.8
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.0
+        core.units[1].energy = 1.0
+
+        core.step()
+        # raw_delta = -0.04, delta = -0.04 * 0.0 = 0.0
+        # activation stays at 0 (clamped to [0, 1])
+        assert core.units[1].activation == 0.0, (
+            f"Near floor: inhibition should be near-zero, got {core.units[1].activation}"
+        )
+
+    def test_saturation_activation_stays_in_bounds(self):
+        """饱和机制下，activation 始终在 [0, 1]."""
+        config = AnivaConfig(
+            unit_count=20,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.05,
+            synaptic_strength=0.2,
+        )
+        core = LifeCore(config)
+        # 混合极端初始值
+        for unit in core.units.values():
+            unit.activation = 1.0 if unit.uid % 2 == 0 else 0.0
+            unit.energy = 1.0
+
+        for _ in range(200):
+            core.step()
+            for unit in core.units.values():
+                assert 0.0 <= unit.activation <= 1.0, (
+                    f"Unit {unit.uid} activation={unit.activation}"
+                )
+
+    def test_saturation_seed_determinism(self):
+        """饱和机制下，相同 seed 仍可复现."""
+        config = AnivaConfig(
+            unit_count=10,
+            seed=42,
+            dt=1.0,
+            noise_strength=0.05,
+            synaptic_strength=0.1,
+        )
+        core1 = LifeCore(config)
+        core2 = LifeCore(config)
+
+        for _ in range(50):
+            core1.step()
+            core2.step()
+
+        for uid in core1.units:
+            assert core1.units[uid].activation == core2.units[uid].activation, (
+                f"Seed determinism broken at unit {uid}"
+            )
+            assert core1.units[uid].energy == core2.units[uid].energy
+
+
 class TestLeakAndThreshold:
     """Phase 3.5: activation leak + threshold gating."""
 

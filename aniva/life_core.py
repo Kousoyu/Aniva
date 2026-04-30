@@ -116,7 +116,15 @@ class LifeCore:
                     cfg.min_energy_activation_factor
                     + (1.0 - cfg.min_energy_activation_factor) * unit.energy
                 )
-                unit.activation += inp * cfg.synaptic_strength * dt * energy_factor
+                raw_delta = inp * cfg.synaptic_strength * dt * energy_factor
+                # 符号分离饱和：
+                #   兴奋信号受 (1 - activation) 限制，activation 越高越难继续推高
+                #   抑制信号受 activation 限制，activation 越低越难继续压低
+                if raw_delta >= 0.0:
+                    delta = raw_delta * (1.0 - unit.activation)
+                else:
+                    delta = raw_delta * unit.activation
+                unit.activation += delta
                 unit.activation = max(0.0, min(1.0, unit.activation))
 
         for unit in self.units.values():

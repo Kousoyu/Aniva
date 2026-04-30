@@ -9,6 +9,7 @@ from aniva.life_core import LifeCore
 from aniva.core.connection import Connection
 from aniva.observer import Observer
 from aniva.experiments import exp1_free_run
+from aniva.experiments import exp1_parameter_sweep
 
 
 class TestLifeCoreInit:
@@ -842,6 +843,66 @@ class TestExp1CLI:
                 lines = f.readlines()
             # header + 50 data rows
             assert len(lines) == 51
+
+
+class TestParameterSweep:
+    """Phase 3.8: 参数扫描观测."""
+
+    def test_sweep_runs_without_error(self):
+        """参数扫描不报错."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            unit_count=5,
+            total_steps=20,
+        )
+        assert len(results) == 1
+        # 每个结果包含参数和指标
+        row = results[0]
+        for key in [
+            "noise_strength", "baseline_activity", "synaptic_strength", "seed",
+            "mean_activation", "max_activation", "mean_energy", "min_energy",
+            "mean_trace", "active_unit_ratio",
+        ]:
+            assert key in row, f"Missing key: {key}"
+
+    def test_sweep_grid_size(self):
+        """扫描网格大小 = N_noise * N_baseline * N_synaptic * N_seeds."""
+        ns = [0.01, 0.02]
+        ba = [0.05]
+        ss = [0.05]
+        seeds = [1, 2, 3]
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=ns,
+            baseline_activities=ba,
+            synaptic_strengths=ss,
+            seeds=seeds,
+            unit_count=5,
+            total_steps=10,
+        )
+        assert len(results) == 2 * 1 * 1 * 3
+
+    def test_sweep_determinism(self):
+        """相同输入产生相同结果."""
+        results1 = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            unit_count=5,
+            total_steps=20,
+        )
+        results2 = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            unit_count=5,
+            total_steps=20,
+        )
+        assert results1 == results2
 
 
 class TestObserver:

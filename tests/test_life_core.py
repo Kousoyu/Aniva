@@ -528,6 +528,129 @@ class TestEnergyBalance:
             assert core1.units[uid].activation == core2.units[uid].activation
 
 
+class TestSynapticDiagnostics:
+    """Phase 3.13: 突触影响诊断——判断活性来自 noise 还是网络传导."""
+
+    def test_metrics_includes_synaptic_fields(self):
+        """get_metrics 包含 6 个突触诊断字段."""
+        core = LifeCore(AnivaConfig(unit_count=10, seed=0))
+        obs = Observer(core)
+        metrics = obs.get_metrics()
+        for field in [
+            "source_active_ratio", "mean_effective_output", "max_effective_output",
+            "mean_abs_synaptic_input", "max_abs_synaptic_input", "synaptic_target_ratio",
+        ]:
+            assert field in metrics, f"Missing synaptic field: {field}"
+
+    def test_synaptic_field_types(self):
+        """突触诊断字段类型正确."""
+        core = LifeCore(AnivaConfig(unit_count=10, seed=0))
+        obs = Observer(core)
+        metrics = obs.get_metrics()
+        assert isinstance(metrics["source_active_ratio"], float)
+        assert isinstance(metrics["mean_effective_output"], float)
+        assert isinstance(metrics["max_effective_output"], float)
+        assert isinstance(metrics["mean_abs_synaptic_input"], float)
+        assert isinstance(metrics["max_abs_synaptic_input"], float)
+        assert isinstance(metrics["synaptic_target_ratio"], float)
+
+    def test_source_active_ratio_in_range(self):
+        """source_active_ratio 在 [0, 1]."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0))
+        obs = Observer(core)
+        for _ in range(20):
+            core.step()
+        metrics = obs.get_metrics()
+        assert 0.0 <= metrics["source_active_ratio"] <= 1.0
+
+    def test_synaptic_target_ratio_in_range(self):
+        """synaptic_target_ratio 在 [0, 1]."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0))
+        obs = Observer(core)
+        for _ in range(20):
+            core.step()
+        metrics = obs.get_metrics()
+        assert 0.0 <= metrics["synaptic_target_ratio"] <= 1.0
+
+    def test_no_connections_zero_synaptic_input(self):
+        """无连接时 mean_abs_synaptic_input = 0."""
+        config = AnivaConfig(
+            unit_count=10, seed=0,
+            connection_density=0.0,  # 零连接
+        )
+        core = LifeCore(config)
+        obs = Observer(core)
+        metrics = obs.get_metrics()
+        assert metrics["mean_abs_synaptic_input"] == 0.0
+        assert metrics["max_abs_synaptic_input"] == 0.0
+        assert metrics["synaptic_target_ratio"] == 0.0
+
+    def test_above_threshold_source_produces_output(self):
+        """source 超过 threshold 时 effective_output > 0."""
+        config = AnivaConfig(
+            unit_count=5, seed=0,
+            connection_density=0.0,
+            noise_strength=0.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        obs = Observer(core)
+        # 手动设一个单元 activation 超过 threshold
+        core.units[0].activation = 0.5
+        core.units[0].threshold = 0.2
+        metrics = obs.get_metrics()
+        assert metrics["source_active_ratio"] > 0.0, (
+            f"Expected source_active_ratio > 0, got {metrics['source_active_ratio']}"
+        )
+        assert metrics["max_effective_output"] > 0.0
+
+    def test_strong_connection_produces_synaptic_input(self):
+        """有强连接且 source 超 threshold 时，突触输入 > 0."""
+        config = AnivaConfig(
+            unit_count=2, seed=0,
+            dt=1.0,
+            connection_density=0.0,
+            noise_strength=0.0,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(
+            Connection(cid=0, source_id=0, target_id=1, weight=0.8)
+        )
+        core.units[0].activation = 0.6
+        core.units[0].threshold = 0.2
+        core.units[1].activation = 0.0
+
+        obs = Observer(core)
+        metrics = obs.get_metrics()
+        # effective_output = 0.6 - 0.2 = 0.4, contribution = 0.4*0.8 = 0.32
+        assert metrics["mean_abs_synaptic_input"] > 0.0, (
+            f"Expected synaptic input > 0, got {metrics['mean_abs_synaptic_input']}"
+        )
+        assert metrics["max_abs_synaptic_input"] == pytest.approx(0.32)
+        assert metrics["synaptic_target_ratio"] > 0.0
+
+    def test_sweep_output_includes_synaptic_fields(self):
+        """参数扫描输出包含突触诊断字段."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            unit_count=5,
+            total_steps=10,
+        )
+        row = results[0]
+        for field in [
+            "source_active_ratio", "mean_effective_output", "max_effective_output",
+            "mean_abs_synaptic_input", "max_abs_synaptic_input", "synaptic_target_ratio",
+        ]:
+            assert field in row, f"Missing synaptic field in sweep: {field}"
+
+
 class TestSynapticTransmission:
     """Phase 3: 最小突触传递——Unit 通过 Connection 互相影响."""
 

@@ -5,6 +5,7 @@ Observer 不做任何修改，只负责读取和记录。
 
 import numpy as np
 from aniva.life_core import LifeCore
+from aniva.core.dynamics import compute_synaptic_input
 
 
 class Observer:
@@ -47,16 +48,7 @@ class Observer:
         不做解释，不判断"是否活着"——只记录客观数值。
 
         Returns:
-            dict: {
-                "step": int,
-                "mean_activation": float,
-                "max_activation": float,
-                "min_activation": float,
-                "mean_energy": float,
-                "min_energy": float,
-                "mean_trace": float,
-                "active_unit_ratio": float,  # activation > threshold 的比例
-            }
+            dict: 包含 activation/energy/trace/突触诊断等聚合指标。
         """
         activations = np.array([u.activation for u in self._core.units.values()])
         energies = np.array([u.energy for u in self._core.units.values()])
@@ -65,6 +57,14 @@ class Observer:
         active_mask = activations > thresholds
         mean_act = float(np.mean(activations))
         mean_thresh = float(np.mean(thresholds))
+
+        # 突触诊断：当前状态下网络的传导情况
+        effective_outputs = np.maximum(0.0, activations - thresholds)
+        source_active_mask = effective_outputs > 0.0
+        syn_inputs = compute_synaptic_input(self._core.connections, self._core.units)
+        syn_values = np.array(list(syn_inputs.values())) if syn_inputs else np.array([])
+        abs_syn = np.abs(syn_values) if len(syn_values) > 0 else syn_values
+
         return {
             "step": self._core.step_count,
             "mean_activation": mean_act,
@@ -80,4 +80,11 @@ class Observer:
             "mean_activation_to_threshold_ratio": (
                 mean_act / mean_thresh if mean_thresh > 0 else 0.0
             ),
+            # 突触诊断
+            "source_active_ratio": float(np.mean(source_active_mask)),
+            "mean_effective_output": float(np.mean(effective_outputs)),
+            "max_effective_output": float(np.max(effective_outputs)),
+            "mean_abs_synaptic_input": float(np.mean(abs_syn)) if len(abs_syn) > 0 else 0.0,
+            "max_abs_synaptic_input": float(np.max(abs_syn)) if len(abs_syn) > 0 else 0.0,
+            "synaptic_target_ratio": float(len(syn_inputs) / len(self._core.units)) if self._core.units else 0.0,
         }

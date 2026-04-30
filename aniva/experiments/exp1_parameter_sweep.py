@@ -91,6 +91,12 @@ def sweep(
             "active_unit_ratio": fm["active_unit_ratio"],
             "mean_threshold": fm["mean_threshold"],
             "mean_activation_to_threshold_ratio": fm["mean_activation_to_threshold_ratio"],
+            "source_active_ratio": fm["source_active_ratio"],
+            "mean_effective_output": fm["mean_effective_output"],
+            "max_effective_output": fm["max_effective_output"],
+            "mean_abs_synaptic_input": fm["mean_abs_synaptic_input"],
+            "max_abs_synaptic_input": fm["max_abs_synaptic_input"],
+            "synaptic_target_ratio": fm["synaptic_target_ratio"],
         })
     return results
 

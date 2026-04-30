@@ -65,7 +65,10 @@ def _print_metrics(m: dict) -> None:
         f"min={m['min_activation']:.4f} | "
         f"energy: mean={m['mean_energy']:.4f} min={m['min_energy']:.4f} | "
         f"trace: mean={m['mean_trace']:.4f} | "
-        f"active: {m['active_unit_ratio']:.2%}"
+        f"active: {m['active_unit_ratio']:.2%} | "
+        f"syn: src_active={m['source_active_ratio']:.2%} "
+        f"in_mean={m['mean_abs_synaptic_input']:.6f} "
+        f"in_max={m['max_abs_synaptic_input']:.4f}"
     )
 
 

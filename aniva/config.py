@@ -35,7 +35,7 @@ class AnivaConfig:
     dt: float = 0.5
     noise_strength: float = 0.01
     energy_consumption_rate: float = 0.05
-    energy_recovery_rate: float = 0.002
+    energy_recovery_rate: float = 0.008
     trace_decay_rate: float = 0.001
     min_energy_activation_factor: float = 0.25
     synaptic_strength: float = 0.05

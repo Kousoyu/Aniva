@@ -415,6 +415,119 @@ class TestEnergyFeedback:
             assert u1.trace == u2.trace
 
 
+class TestEnergyBalance:
+    """Phase 3.12: energy balance — 默认参数下存在合理的 energy 稳态."""
+
+    def test_default_recovery_exceeds_baseline_consumption(self):
+        """recovery_rate 大于 baseline 消耗，否则 energy 必崩."""
+        cfg = AnivaConfig()
+        consumption_at_baseline = cfg.baseline_activity * cfg.energy_consumption_rate
+        assert cfg.energy_recovery_rate > consumption_at_baseline, (
+            f"recovery_rate={cfg.energy_recovery_rate} must exceed "
+            f"baseline consumption={consumption_at_baseline}"
+        )
+
+    def test_energy_converges_at_baseline_activity(self):
+        """baseline 活性下，energy 收敛到非零稳态."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            connection_density=0.0,
+            baseline_activity=0.05,
+            leak_rate=0.0,
+            energy_consumption_rate=0.05,
+            energy_recovery_rate=0.008,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.05  # = baseline
+        unit.energy = 0.4
+
+        for _ in range(200):
+            core.step()
+
+        # 稳态: 0.05*0.05 = 0.008*(1-e) → e ≈ 0.6875
+        assert unit.energy > 0.5, (
+            f"Energy should converge above 0.5, got {unit.energy}"
+        )
+        assert unit.energy < 0.9, (
+            f"Energy should not overshoot, got {unit.energy}"
+        )
+
+    def test_high_activation_still_drains_energy(self):
+        """高 activation 仍然消耗 energy（疲劳机制保留）."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            connection_density=0.0,
+            baseline_activity=0.05,
+            leak_rate=0.0,
+            energy_consumption_rate=0.05,
+            energy_recovery_rate=0.008,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.5
+        unit.energy = 0.7
+
+        initial_energy = unit.energy
+        for _ in range(50):
+            core.step()
+
+        assert unit.energy < initial_energy, (
+            f"High activation should drain energy: {initial_energy} → {unit.energy}"
+        )
+
+    def test_low_activation_allows_recovery(self):
+        """低于稳态时 energy 可以恢复."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            connection_density=0.0,
+            baseline_activity=0.05,
+            leak_rate=0.0,
+            energy_consumption_rate=0.05,
+            energy_recovery_rate=0.008,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.0
+        unit.energy = 0.3
+
+        initial_energy = unit.energy
+        for _ in range(50):
+            core.step()
+
+        assert unit.energy > initial_energy, (
+            f"Low activation should allow recovery: {initial_energy} → {unit.energy}"
+        )
+
+    def test_energy_balance_determinism(self):
+        """能量修正不影响确定性."""
+        config = AnivaConfig(
+            unit_count=10,
+            seed=42,
+            dt=1.0,
+            noise_strength=0.05,
+        )
+        core1 = LifeCore(config)
+        core2 = LifeCore(config)
+
+        for _ in range(50):
+            core1.step()
+            core2.step()
+
+        for uid in core1.units:
+            assert core1.units[uid].energy == core2.units[uid].energy
+            assert core1.units[uid].activation == core2.units[uid].activation
+
+
 class TestSynapticTransmission:
     """Phase 3: 最小突触传递——Unit 通过 Connection 互相影响."""
 

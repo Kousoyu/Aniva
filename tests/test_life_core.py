@@ -287,6 +287,101 @@ class TestLifeCoreStepDynamics:
         assert non_zero > 0, f"Expected some non-zero activations, got all zeros"
 
 
+class TestEnergyFeedback:
+    """Phase 2.5: 能量反馈——energy 反过来约束 activation."""
+
+    def test_low_energy_suppresses_activation(self):
+        """低 energy 时，activation 被压低."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            min_energy_activation_factor=0.25,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.8
+        unit.energy = 0.1  # 低能量
+
+        core.step()
+        # energy_factor = 0.25 + 0.75 * 0.1 = 0.325
+        # activation 应该从 0.8 被压到 0.8 * 0.325 = 0.26
+        expected_factor = 0.25 + 0.75 * 0.1
+        assert unit.activation == pytest.approx(0.8 * expected_factor), (
+            f"Expected activation ~{0.8 * expected_factor}, got {unit.activation}"
+        )
+
+    def test_high_energy_preserves_activation(self):
+        """高 energy 时，activation 几乎不被压制."""
+        config = AnivaConfig(
+            unit_count=1,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            min_energy_activation_factor=0.25,
+        )
+        core = LifeCore(config)
+        unit = core.units[0]
+        unit.activation = 0.8
+        unit.energy = 1.0
+
+        core.step()
+        # energy_factor = 0.25 + 0.75 * 1.0 = 1.0
+        assert unit.activation == pytest.approx(0.8), (
+            f"High energy should preserve activation, got {unit.activation}"
+        )
+
+    def test_energy_gate_does_not_push_out_of_bounds(self):
+        """energy gate 不会让 activation 越界."""
+        config = AnivaConfig(
+            unit_count=10,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.1,
+            min_energy_activation_factor=0.25,
+        )
+        core = LifeCore(config)
+        # 强制混合极端状态
+        for uid, unit in core.units.items():
+            unit.activation = 1.0 if uid % 2 == 0 else 0.0
+            unit.energy = 0.0 if uid % 3 == 0 else 1.0
+
+        for _ in range(50):
+            core.step()
+            for unit in core.units.values():
+                assert 0.0 <= unit.activation <= 1.0, (
+                    f"Unit {unit.uid} activation={unit.activation} out of [0, 1]"
+                )
+
+    def test_energy_gate_seed_determinism(self):
+        """加入 energy gate 后，相同 seed 仍然可复现."""
+        config = AnivaConfig(
+            unit_count=10,
+            seed=42,
+            dt=1.0,
+            noise_strength=0.05,
+            min_energy_activation_factor=0.25,
+        )
+        core1 = LifeCore(config)
+        core2 = LifeCore(config)
+
+        for _ in range(30):
+            core1.step()
+            core2.step()
+
+        for uid in core1.units:
+            u1 = core1.units[uid]
+            u2 = core2.units[uid]
+            assert u1.activation == u2.activation
+            assert u1.energy == u2.energy
+            assert u1.trace == u2.trace
+
+
 class TestObserver:
     def test_snapshot_shape(self):
         """快照返回正确的数据形状."""

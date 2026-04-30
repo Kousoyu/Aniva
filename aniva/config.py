@@ -17,6 +17,8 @@ class AnivaConfig:
         energy_consumption_rate: 能量消耗速率（乘 activation 后每单位时间消耗）。
         energy_recovery_rate: 每步能量恢复速率。
         trace_decay_rate: 历史痕迹衰减速率。
+        min_energy_activation_factor: 能量对 activation 的最低调制因子。
+            energy=1 时 factor≈1（无压制），energy=0 时 factor=此值（最大压制但非零）。
         plasticity_rate: 连接权重变化速率（后续使用）。
         spatial_radius: 单元分布的立方体空间半径（position 的取值范围）。
     """
@@ -30,6 +32,7 @@ class AnivaConfig:
     energy_consumption_rate: float = 0.05
     energy_recovery_rate: float = 0.002
     trace_decay_rate: float = 0.001
+    min_energy_activation_factor: float = 0.25
     plasticity_rate: float = 0.0001
     spatial_radius: float = 1.0
 

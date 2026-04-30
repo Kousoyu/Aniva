@@ -94,14 +94,21 @@ class LifeCore:
 
         对每个 Unit 依次执行：
         1. 噪声扰动 → activation 接受微小随机波动
-        2. 能量消耗 → 活跃消耗能量
-        3. 能量恢复 → 能量缓慢自然恢复
-        4. 痕迹更新 → activation 加深痕迹，痕迹缓慢衰减
+        2. 能量门控 → energy 越低 activation 越被压低（代谢闭环）
+        3. 能量消耗 → 活跃消耗能量
+        4. 能量恢复 → 能量缓慢自然恢复
+        5. 痕迹更新 → activation 加深痕迹，痕迹缓慢衰减
         """
         dt = self.config.dt
         cfg = self.config
         for unit in self.units.values():
             apply_noise(unit, cfg.noise_strength, dt, self.rng)
+            # 能量反馈：energy 越低 → activation 越被压低
+            energy_factor = (
+                cfg.min_energy_activation_factor
+                + (1.0 - cfg.min_energy_activation_factor) * unit.energy
+            )
+            unit.activation *= energy_factor
             consume_energy(unit, cfg.energy_consumption_rate, dt)
             recover_energy(unit, cfg.energy_recovery_rate, dt)
             # Trace: 活跃加深痕迹，再整体缓慢衰减

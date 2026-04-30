@@ -24,6 +24,8 @@ def sweep(
     min_energy_activation_factors: list[float] | None = None,
     leak_rates: list[float] | None = None,
     threshold_softnesses: list[float] | None = None,
+    connection_densities: list[float] | None = None,
+    exc_inh_ratios: list[float] | None = None,
     unit_count: int = 30,
     total_steps: int = 500,
 ) -> list[dict[str, Any]]:
@@ -39,6 +41,8 @@ def sweep(
         min_energy_activation_factors: min_energy_activation_factor 值列表，None 则用默认值。
         leak_rates: leak_rate 值列表，None 则用默认值。
         threshold_softnesses: threshold_softness 值列表，None 则用默认值。
+        connection_densities: connection_density 值列表，None 则用默认值。
+        exc_inh_ratios: exc_inh_ratio 值列表，None 则用默认值。
         unit_count: 每组使用的单元数。
         total_steps: 每组运行的总步数。
 
@@ -55,13 +59,17 @@ def sweep(
         leak_rates = [AnivaConfig.leak_rate]
     if threshold_softnesses is None:
         threshold_softnesses = [AnivaConfig.threshold_softness]
+    if connection_densities is None:
+        connection_densities = [AnivaConfig.connection_density]
+    if exc_inh_ratios is None:
+        exc_inh_ratios = [AnivaConfig.exc_inh_ratio]
 
     results: list[dict[str, Any]] = []
-    for ns, ba, ss, seed, tmin, tmax, eaf, lr, ts in itertools.product(
+    for ns, ba, ss, seed, tmin, tmax, eaf, lr, ts, cd, eir in itertools.product(
         noise_strengths, baseline_activities, synaptic_strengths,
         seeds, threshold_mins, threshold_maxs,
         min_energy_activation_factors, leak_rates,
-        threshold_softnesses,
+        threshold_softnesses, connection_densities, exc_inh_ratios,
     ):
         if tmin > tmax:
             continue
@@ -77,6 +85,8 @@ def sweep(
             min_energy_activation_factor=eaf,
             leak_rate=lr,
             threshold_softness=ts,
+            connection_density=cd,
+            exc_inh_ratio=eir,
         )
         result = run(config=config, total_steps=total_steps, report_interval=total_steps + 1)
         fm = result["final_metrics"]
@@ -90,6 +100,8 @@ def sweep(
             "min_energy_activation_factor": eaf,
             "leak_rate": lr,
             "threshold_softness": ts,
+            "connection_density": cd,
+            "exc_inh_ratio": eir,
             "mean_activation": fm["mean_activation"],
             "max_activation": fm["max_activation"],
             "mean_energy": fm["mean_energy"],
@@ -170,6 +182,14 @@ def main(argv: list[str] | None = None) -> int:
         help="threshold_softness 值列表（默认 0.05）"
     )
     parser.add_argument(
+        "--connection-density", type=float, nargs="+", default=None,
+        help="connection_density 值列表（默认 0.05）"
+    )
+    parser.add_argument(
+        "--exc-inh-ratio", type=float, nargs="+", default=None,
+        help="exc_inh_ratio 值列表（默认 0.8）"
+    )
+    parser.add_argument(
         "--output-csv", type=str, default=None,
         help="保存结果到 CSV 文件"
     )
@@ -185,6 +205,8 @@ def main(argv: list[str] | None = None) -> int:
         min_energy_activation_factors=args.energy_factor,
         leak_rates=args.leak_rate,
         threshold_softnesses=args.threshold_softness,
+        connection_densities=args.connection_density,
+        exc_inh_ratios=args.exc_inh_ratio,
         unit_count=args.unit_count,
         total_steps=args.steps,
     )

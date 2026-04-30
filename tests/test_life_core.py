@@ -1462,6 +1462,118 @@ class TestEnergyGateDiagnostics:
             _sys.argv = _argv_backup
 
 
+class TestNetworkBoundaryDiagnostics:
+    """Phase 3.16: connection_density + exc_inh_ratio 参数扫描."""
+
+    def test_sweep_connection_density_values_recorded(self):
+        """sweep 结果记录 connection_density."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            connection_densities=[0.02, 0.05, 0.1],
+            unit_count=5,
+            total_steps=10,
+        )
+        assert len(results) == 3
+        cd_values = {r["connection_density"] for r in results}
+        assert cd_values == {0.02, 0.05, 0.1}
+
+    def test_sweep_exc_inh_ratio_values_recorded(self):
+        """sweep 结果记录 exc_inh_ratio."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            exc_inh_ratios=[0.6, 0.8],
+            unit_count=5,
+            total_steps=10,
+        )
+        assert len(results) == 2
+        eir_values = {r["exc_inh_ratio"] for r in results}
+        assert eir_values == {0.6, 0.8}
+
+    def test_sweep_default_connection_density_is_config_default(self):
+        """不指定 connection_density 时使用 AnivaConfig 默认值."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            unit_count=5,
+            total_steps=10,
+        )
+        assert results[0]["connection_density"] == AnivaConfig.connection_density
+
+    def test_sweep_default_exc_inh_ratio_is_config_default(self):
+        """不指定 exc_inh_ratio 时使用 AnivaConfig 默认值."""
+        results = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1],
+            unit_count=5,
+            total_steps=10,
+        )
+        assert results[0]["exc_inh_ratio"] == AnivaConfig.exc_inh_ratio
+
+    def test_sweep_determinism_with_network_params(self):
+        """connection_density + exc_inh_ratio 扫描也保证确定性."""
+        results1 = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1, 2],
+            connection_densities=[0.02, 0.05],
+            exc_inh_ratios=[0.6, 0.8],
+            unit_count=5,
+            total_steps=20,
+        )
+        results2 = exp1_parameter_sweep.sweep(
+            noise_strengths=[0.01],
+            baseline_activities=[0.05],
+            synaptic_strengths=[0.05],
+            seeds=[1, 2],
+            connection_densities=[0.02, 0.05],
+            exc_inh_ratios=[0.6, 0.8],
+            unit_count=5,
+            total_steps=20,
+        )
+        assert results1 == results2
+
+    def test_cli_connection_density_arg(self):
+        """CLI --connection-density 参数传递正确."""
+        import sys as _sys
+        _argv_backup = _sys.argv
+        try:
+            _sys.argv = ["exp1_parameter_sweep.py",
+                         "--connection-density", "0.02", "0.05", "0.1",
+                         "--noise", "0.01", "--baseline", "0.05",
+                         "--synaptic", "0.05", "--seeds", "1",
+                         "--unit-count", "5", "--steps", "10"]
+            exit_code = exp1_parameter_sweep.main()
+            assert exit_code == 0
+        finally:
+            _sys.argv = _argv_backup
+
+    def test_cli_exc_inh_ratio_arg(self):
+        """CLI --exc-inh-ratio 参数传递正确."""
+        import sys as _sys
+        _argv_backup = _sys.argv
+        try:
+            _sys.argv = ["exp1_parameter_sweep.py",
+                         "--exc-inh-ratio", "0.6", "0.8",
+                         "--noise", "0.01", "--baseline", "0.05",
+                         "--synaptic", "0.05", "--seeds", "1",
+                         "--unit-count", "5", "--steps", "10"]
+            exit_code = exp1_parameter_sweep.main()
+            assert exit_code == 0
+        finally:
+            _sys.argv = _argv_backup
+
+
 class TestThresholdConfig:
     """Phase 3.9: threshold 参数暴露."""
 

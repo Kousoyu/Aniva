@@ -64,10 +64,15 @@ class Observer:
         x = np.clip(x, -60.0, 60.0)
         gate = 1.0 / (1.0 + np.exp(-x))
         effective_outputs = activations * gate
-        source_active_mask = effective_outputs > 1e-8
+        soft_output_mask = effective_outputs > 1e-8
+        strong_output_mask = effective_outputs > 0.01
         syn_inputs = compute_synaptic_input(self._core.connections, self._core.units, self._core.config.threshold_softness)
         syn_values = np.array(list(syn_inputs.values())) if syn_inputs else np.array([])
         abs_syn = np.abs(syn_values) if len(syn_values) > 0 else syn_values
+
+        hard_active = float(np.mean(active_mask))
+        soft_out = float(np.mean(soft_output_mask))
+        strong_out = float(np.mean(strong_output_mask))
 
         return {
             "step": self._core.step_count,
@@ -77,18 +82,23 @@ class Observer:
             "mean_energy": float(np.mean(energies)),
             "min_energy": float(np.min(energies)),
             "mean_trace": float(np.mean(traces)),
-            "active_unit_ratio": float(np.mean(active_mask)),
+            # 强激活：activation > threshold
+            "active_unit_ratio": hard_active,
+            "hard_active_ratio": hard_active,
             "mean_threshold": mean_thresh,
             "min_threshold": float(np.min(thresholds)),
             "max_threshold": float(np.max(thresholds)),
             "mean_activation_to_threshold_ratio": (
                 mean_act / mean_thresh if mean_thresh > 0 else 0.0
             ),
-            # 突触诊断
-            "source_active_ratio": float(np.mean(source_active_mask)),
+            # 突触输出分层
+            "soft_output_ratio": soft_out,
+            "strong_output_ratio": strong_out,
             "mean_effective_output": float(np.mean(effective_outputs)),
             "max_effective_output": float(np.max(effective_outputs)),
             "mean_abs_synaptic_input": float(np.mean(abs_syn)) if len(abs_syn) > 0 else 0.0,
             "max_abs_synaptic_input": float(np.max(abs_syn)) if len(abs_syn) > 0 else 0.0,
             "synaptic_target_ratio": float(len(syn_inputs) / len(self._core.units)) if self._core.units else 0.0,
+            # 兼容旧字段
+            "source_active_ratio": soft_out,
         }

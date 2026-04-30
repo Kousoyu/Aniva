@@ -532,15 +532,45 @@ class TestSynapticDiagnostics:
     """Phase 3.13: 突触影响诊断——判断活性来自 noise 还是网络传导."""
 
     def test_metrics_includes_synaptic_fields(self):
-        """get_metrics 包含 6 个突触诊断字段."""
+        """get_metrics 包含突触诊断字段."""
         core = LifeCore(AnivaConfig(unit_count=10, seed=0))
         obs = Observer(core)
         metrics = obs.get_metrics()
         for field in [
+            "hard_active_ratio", "soft_output_ratio", "strong_output_ratio",
             "source_active_ratio", "mean_effective_output", "max_effective_output",
             "mean_abs_synaptic_input", "max_abs_synaptic_input", "synaptic_target_ratio",
         ]:
             assert field in metrics, f"Missing synaptic field: {field}"
+
+    def test_hard_active_equals_active_unit_ratio(self):
+        """hard_active_ratio 与 active_unit_ratio 一致."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0))
+        obs = Observer(core)
+        for _ in range(20):
+            core.step()
+        metrics = obs.get_metrics()
+        assert metrics["hard_active_ratio"] == metrics["active_unit_ratio"]
+
+    def test_source_active_equals_soft_output_ratio(self):
+        """source_active_ratio 是 soft_output_ratio 的兼容别名."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0))
+        obs = Observer(core)
+        for _ in range(20):
+            core.step()
+        metrics = obs.get_metrics()
+        assert metrics["source_active_ratio"] == metrics["soft_output_ratio"]
+
+    def test_strong_output_ratio_le_soft_output_ratio(self):
+        """strong_output_ratio <= soft_output_ratio."""
+        core = LifeCore(AnivaConfig(unit_count=20, seed=0))
+        obs = Observer(core)
+        for _ in range(50):
+            core.step()
+        metrics = obs.get_metrics()
+        assert metrics["strong_output_ratio"] <= metrics["soft_output_ratio"], (
+            f"strong={metrics['strong_output_ratio']} > soft={metrics['soft_output_ratio']}"
+        )
 
     def test_synaptic_field_types(self):
         """突触诊断字段类型正确."""
@@ -645,6 +675,7 @@ class TestSynapticDiagnostics:
         )
         row = results[0]
         for field in [
+            "hard_active_ratio", "soft_output_ratio", "strong_output_ratio",
             "source_active_ratio", "mean_effective_output", "max_effective_output",
             "mean_abs_synaptic_input", "max_abs_synaptic_input", "synaptic_target_ratio",
         ]:
@@ -1096,6 +1127,7 @@ class TestObserverMetrics:
         expected_fields = {
             "step", "mean_activation", "max_activation", "min_activation",
             "mean_energy", "min_energy", "mean_trace", "active_unit_ratio",
+            "hard_active_ratio", "soft_output_ratio", "strong_output_ratio",
             "mean_threshold", "min_threshold", "max_threshold",
             "mean_activation_to_threshold_ratio",
         }

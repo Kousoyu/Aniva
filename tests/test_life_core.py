@@ -293,95 +293,119 @@ class TestLifeCoreStepDynamics:
 
 
 class TestEnergyFeedback:
-    """Phase 2.5: 能量反馈——energy 反过来约束 activation."""
+    """Phase 3.11: energy gate 调制突触输入响应，而非直接压 activation."""
 
-    def test_low_energy_suppresses_activation(self):
-        """低 energy 时，activation 被压低."""
+    def test_low_energy_target_responds_weaker_to_synaptic(self):
+        """低 energy 的 target 对同样的突触输入响应更弱."""
         config = AnivaConfig(
-            unit_count=1,
+            unit_count=2,
             seed=0,
             dt=1.0,
             noise_strength=0.0,
             energy_consumption_rate=0.0,
             energy_recovery_rate=0.0,
+            connection_density=0.0,
+            synaptic_strength=0.1,
             min_energy_activation_factor=0.25,
             baseline_activity=0.0,
             leak_rate=0.0,
+            threshold_min=0.0,
+            threshold_max=0.0,
         )
         core = LifeCore(config)
-        unit = core.units[0]
-        unit.activation = 0.8
-        unit.energy = 0.1  # 低能量
+        core.connections.clear()
+        core.connections.append(Connection(cid=0, source_id=0, target_id=1, weight=0.5))
+        core.units[0].activation = 0.8
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.0
+        core.units[1].energy = 0.1  # 低能量
 
         core.step()
-        # energy_factor = 0.25 + 0.75 * 0.1 = 0.325
-        # activation 应该从 0.8 被压到 0.8 * 0.325 = 0.26
-        expected_factor = 0.25 + 0.75 * 0.1
-        assert unit.activation == pytest.approx(0.8 * expected_factor), (
-            f"Expected activation ~{0.8 * expected_factor}, got {unit.activation}"
+        # effective_output = 0.8, contribution = 0.8*0.5 = 0.4
+        # energy_factor = 0.25 + 0.75*0.1 = 0.325
+        # delta = 0.4 * 0.1 * 1.0 * 0.325 = 0.013
+        assert core.units[1].activation == pytest.approx(0.013), (
+            f"Low energy target should respond weakly, got {core.units[1].activation}"
         )
 
-    def test_high_energy_preserves_activation(self):
-        """高 energy 时，activation 几乎不被压制."""
+    def test_high_energy_target_responds_stronger_to_synaptic(self):
+        """高 energy 的 target 对同样的突触输入响应更强."""
         config = AnivaConfig(
-            unit_count=1,
+            unit_count=2,
             seed=0,
             dt=1.0,
             noise_strength=0.0,
             energy_consumption_rate=0.0,
             energy_recovery_rate=0.0,
+            connection_density=0.0,
+            synaptic_strength=0.1,
+            min_energy_activation_factor=0.25,
+            baseline_activity=0.0,
+            leak_rate=0.0,
+            threshold_min=0.0,
+            threshold_max=0.0,
+        )
+        core = LifeCore(config)
+        core.connections.clear()
+        core.connections.append(Connection(cid=0, source_id=0, target_id=1, weight=0.5))
+        core.units[0].activation = 0.8
+        core.units[0].energy = 1.0
+        core.units[1].activation = 0.0
+        core.units[1].energy = 1.0  # 高能量
+
+        core.step()
+        # energy_factor = 0.25 + 0.75*1.0 = 1.0
+        # delta = 0.4 * 0.1 * 1.0 * 1.0 = 0.04
+        assert core.units[1].activation == pytest.approx(0.04), (
+            f"High energy target should respond fully, got {core.units[1].activation}"
+        )
+
+    def test_energy_gate_no_direct_effect_without_input(self):
+        """无输入、无噪声、无 leak、无消耗时，energy gate 不单独改变 activation."""
+        config = AnivaConfig(
+            unit_count=5,
+            seed=0,
+            dt=1.0,
+            noise_strength=0.0,
+            energy_consumption_rate=0.0,
+            energy_recovery_rate=0.0,
+            connection_density=0.0,
             min_energy_activation_factor=0.25,
             baseline_activity=0.0,
             leak_rate=0.0,
         )
         core = LifeCore(config)
-        unit = core.units[0]
-        unit.activation = 0.8
-        unit.energy = 1.0
+        for unit in core.units.values():
+            unit.activation = 0.5
+            unit.energy = 0.3  # 低能量，旧 gate 会压制，新 gate 不应该
 
+        initial_acts = [u.activation for u in core.units.values()]
         core.step()
-        # energy_factor = 0.25 + 0.75 * 1.0 = 1.0
-        assert unit.activation == pytest.approx(0.8), (
-            f"High energy should preserve activation, got {unit.activation}"
+        current_acts = [u.activation for u in core.units.values()]
+        assert initial_acts == current_acts, (
+            "Without input, energy gate should not change activation"
         )
 
-    def test_energy_gate_does_not_push_out_of_bounds(self):
-        """energy gate 不会让 activation 越界."""
-        config = AnivaConfig(
-            unit_count=10,
-            seed=0,
-            dt=1.0,
-            noise_strength=0.1,
-            min_energy_activation_factor=0.25,
-        )
-        core = LifeCore(config)
-        # 强制混合极端状态
-        for uid, unit in core.units.items():
-            unit.activation = 1.0 if uid % 2 == 0 else 0.0
-            unit.energy = 0.0 if uid % 3 == 0 else 1.0
-
-        for _ in range(50):
-            core.step()
-            for unit in core.units.values():
-                assert 0.0 <= unit.activation <= 1.0, (
-                    f"Unit {unit.uid} activation={unit.activation} out of [0, 1]"
-                )
-
-    def test_energy_gate_seed_determinism(self):
-        """加入 energy gate 后，相同 seed 仍然可复现."""
+    def test_energy_gate_bounds_and_determinism(self):
+        """新 energy gate 下 activation 不越界且可复现."""
         config = AnivaConfig(
             unit_count=10,
             seed=42,
             dt=1.0,
             noise_strength=0.05,
+            synaptic_strength=0.1,
             min_energy_activation_factor=0.25,
         )
         core1 = LifeCore(config)
         core2 = LifeCore(config)
 
-        for _ in range(30):
+        for _ in range(50):
             core1.step()
             core2.step()
+            for unit in core1.units.values():
+                assert 0.0 <= unit.activation <= 1.0, (
+                    f"Unit {unit.uid} activation={unit.activation} out of [0, 1]"
+                )
 
         for uid in core1.units:
             u1 = core1.units[uid]

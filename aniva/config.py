@@ -17,8 +17,8 @@ class AnivaConfig:
         energy_consumption_rate: 能量消耗速率（乘 activation 后每单位时间消耗）。
         energy_recovery_rate: 每步能量恢复速率。
         trace_decay_rate: 历史痕迹衰减速率。
-        min_energy_activation_factor: 能量对 activation 的最低调制因子。
-            energy=1 时 factor≈1（无压制），energy=0 时 factor=此值（最大压制但非零）。
+        min_energy_activation_factor: 能量对突触输入响应的最低调制因子。
+            energy=1 时 factor=1（完全响应），energy=0 时 factor=此值（最低响应但非零）。
         synaptic_strength: 突触传递强度，控制连接输入对 activation 的影响幅度。
         baseline_activity: activation 的自然回落目标值。
         leak_rate: activation 向 baseline 回落的速率。

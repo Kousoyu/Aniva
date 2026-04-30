@@ -96,9 +96,9 @@ class LifeCore:
         """推进一个时间步。
 
         对每个 Unit 依次执行：
-        0. 突触输入 → 所有 connection 的加权信号聚合到 target
+        0. 突触输入 → 加权信号聚合到 target，受 target energy 调制
         1. 噪声扰动 → activation 接受微小随机波动
-        2. 能量门控 → energy 越低 activation 越被压低（代谢闭环）
+        2. 自然回落 → activation 向 baseline 漂移
         3. 能量消耗 → 活跃消耗能量
         4. 能量恢复 → 能量缓慢自然恢复
         5. 痕迹更新 → activation 加深痕迹，痕迹缓慢衰减
@@ -107,21 +107,20 @@ class LifeCore:
         cfg = self.config
 
         # 0. 突触传递：先计算所有输入，再统一应用（避免顺序依赖）
+        #    target 的 energy 调制其对输入的响应强度
         synaptic_inputs = compute_synaptic_input(self.connections, self.units)
         for uid, inp in synaptic_inputs.items():
             unit = self.units.get(uid)
             if unit is not None:
-                unit.activation += inp * cfg.synaptic_strength * dt
+                energy_factor = (
+                    cfg.min_energy_activation_factor
+                    + (1.0 - cfg.min_energy_activation_factor) * unit.energy
+                )
+                unit.activation += inp * cfg.synaptic_strength * dt * energy_factor
                 unit.activation = max(0.0, min(1.0, unit.activation))
 
         for unit in self.units.values():
             apply_noise(unit, cfg.noise_strength, dt, self.rng)
-            # 能量反馈：energy 越低 → activation 越被压低
-            energy_factor = (
-                cfg.min_energy_activation_factor
-                + (1.0 - cfg.min_energy_activation_factor) * unit.energy
-            )
-            unit.activation *= energy_factor
             # 自然回落：activation 向 baseline 漂移，time_constant 决定速度
             leak_delta = (
                 (cfg.baseline_activity - unit.activation)

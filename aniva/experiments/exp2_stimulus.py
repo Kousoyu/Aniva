@@ -17,7 +17,7 @@ import numpy as np
 from aniva.config import AnivaConfig
 from aniva.life_core import LifeCore
 from aniva.observer import Observer
-from aniva.environment.environment import Stimulus, Environment
+from aniva.environment.environment import Stimulus, StimulusEvent, Environment
 
 
 def _trajectory_distance(core_a: LifeCore, core_b: LifeCore) -> float:
@@ -77,10 +77,12 @@ def run(
     stimulus_obs = Observer(stimulus_core)
 
     env = Environment()
-    env.add_stimulus(Stimulus(
-        position=(0.0, 0.0, 0.0),
-        intensity=stim_intensity,
-        radius=stim_radius,
+    env.add_event(StimulusEvent(
+        stimulus=Stimulus(
+            position=(0.0, 0.0, 0.0),
+            intensity=stim_intensity,
+            radius=stim_radius,
+        ),
         start_step=stim_start,
         duration_steps=stim_duration,
     ))

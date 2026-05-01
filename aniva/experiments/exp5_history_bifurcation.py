@@ -30,7 +30,7 @@ import numpy as np
 from aniva.config import AnivaConfig
 from aniva.life_core import LifeCore
 from aniva.observer import Observer
-from aniva.environment.environment import Stimulus, Environment
+from aniva.environment.environment import Stimulus, StimulusEvent, Environment
 
 
 # ── 辅助函数 ────────────────────────────────────────────────────
@@ -96,66 +96,67 @@ def _make_snapshot(
 
 # ── 刺激配置 ────────────────────────────────────────────────────
 
-# 训练刺激
-L_STIM = Stimulus(
-    position=(-0.5, 0.0, 0.0),
-    intensity=0.03, radius=0.5,
-    start_step=300, duration_steps=100,
-)
-R_STIM = Stimulus(
-    position=(0.5, 0.0, 0.0),
-    intensity=0.03, radius=0.5,
-    start_step=1000, duration_steps=100,
-)
-
-# 测试刺激（对所有组在 step=19000 施加，探测动力学差异）
-TEST_STIM = Stimulus(
-    position=(0.0, 0.5, 0.0),
-    intensity=0.03, radius=0.5,
-    start_step=19000, duration_steps=50,
-)
+# 物理刺激定义（无时间 — 时间属于"经历"层）
+L_STIM = Stimulus(position=(-0.5, 0.0, 0.0), intensity=0.03, radius=0.5)
+R_STIM = Stimulus(position=(0.5, 0.0, 0.0), intensity=0.03, radius=0.5)
+TEST_STIM = Stimulus(position=(0.0, 0.5, 0.0), intensity=0.03, radius=0.5)
 
 GROUP_DEFS = {
     "A_L": {
         "label": "L then R",
-        "train_stimuli": [L_STIM, R_STIM],
+        "events": [
+            {"stimulus": L_STIM, "start_step": 300, "duration_steps": 100},
+            {"stimulus": R_STIM, "start_step": 1000, "duration_steps": 100},
+            {"stimulus": TEST_STIM, "start_step": 19000, "duration_steps": 50},
+        ],
         "plasticity_rate": 0.0001,
-        "test_stimulus": TEST_STIM,
         "total_steps": 20000,
     },
     "A_R": {
         "label": "R then L",
-        "train_stimuli": [R_STIM, L_STIM],
+        "events": [
+            {"stimulus": R_STIM, "start_step": 300, "duration_steps": 100},
+            {"stimulus": L_STIM, "start_step": 1000, "duration_steps": 100},
+            {"stimulus": TEST_STIM, "start_step": 19000, "duration_steps": 50},
+        ],
         "plasticity_rate": 0.0001,
-        "test_stimulus": TEST_STIM,
         "total_steps": 20000,
     },
     "B": {
         "label": "no stimulus",
-        "train_stimuli": [],
+        "events": [
+            {"stimulus": TEST_STIM, "start_step": 19000, "duration_steps": 50},
+        ],
         "plasticity_rate": 0.0001,
-        "test_stimulus": TEST_STIM,
         "total_steps": 20000,
     },
     "C": {
         "label": "repeat A_L",
-        "train_stimuli": [L_STIM, R_STIM],
+        "events": [
+            {"stimulus": L_STIM, "start_step": 300, "duration_steps": 100},
+            {"stimulus": R_STIM, "start_step": 1000, "duration_steps": 100},
+            {"stimulus": TEST_STIM, "start_step": 19000, "duration_steps": 50},
+        ],
         "plasticity_rate": 0.0001,
-        "test_stimulus": TEST_STIM,
         "total_steps": 20000,
     },
     "D": {
         "label": "plasticity off",
-        "train_stimuli": [L_STIM, R_STIM],
+        "events": [
+            {"stimulus": L_STIM, "start_step": 300, "duration_steps": 100},
+            {"stimulus": R_STIM, "start_step": 1000, "duration_steps": 100},
+            {"stimulus": TEST_STIM, "start_step": 19000, "duration_steps": 50},
+        ],
         "plasticity_rate": 0.0,
-        "test_stimulus": TEST_STIM,
         "total_steps": 20000,
     },
     "F": {
         "label": "long observation",
-        "train_stimuli": [L_STIM, R_STIM],
+        "events": [
+            {"stimulus": L_STIM, "start_step": 300, "duration_steps": 100},
+            {"stimulus": R_STIM, "start_step": 1000, "duration_steps": 100},
+        ],
         "plasticity_rate": 0.0001,
-        "test_stimulus": None,  # F 不施加测试刺激，观察长期自发轨迹
         "total_steps": 20000,
     },
 }
@@ -194,11 +195,12 @@ def _run_group(
     obs = Observer(core)
 
     env = Environment()
-    for stim in gdef["train_stimuli"]:
-        env.add_stimulus(stim)
-    test_env = Environment()
-    if gdef["test_stimulus"] is not None:
-        test_env.add_stimulus(gdef["test_stimulus"])
+    for es in gdef["events"]:
+        env.add_event(StimulusEvent(
+            stimulus=es["stimulus"],
+            start_step=es["start_step"],
+            duration_steps=es["duration_steps"],
+        ))
 
     snapshots: list[dict] = []
     checkpoints: dict[str, dict] = {}
@@ -206,16 +208,8 @@ def _run_group(
     prev_weights = weights_initial.copy()
 
     for step in range(total_steps):
-        # 训练刺激
-        train_infl = env.compute_influences(core.units, step)
-        # 测试刺激
-        test_infl = test_env.compute_influences(core.units, step)
-        # 合并（测试刺激优先级更高）
-        merged = {**train_infl}
-        for uid, inf in test_infl.items():
-            merged[uid] = merged.get(uid, 0.0) + inf
-
-        core.step(env_influences=merged if merged else None)
+        influences = env.compute_influences(core.units, step)
+        core.step(env_influences=influences if influences else None)
 
         if step == 0:
             checkpoints["initial"] = {

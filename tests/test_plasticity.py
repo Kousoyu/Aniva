@@ -287,7 +287,7 @@ class TestExp5HistoryBifurcation:
         result = run_experiment(
             config=cfg, total_steps=200,
             snapshot_interval=100,
-            groups=["A_L", "A_R", "B", "C", "D", "F"],
+            groups=["A_L", "A_R", "B", "C", "D_L", "F"],
         )
         v = result["verdict"]
         assert "repeatability" in v

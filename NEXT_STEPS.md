@@ -1,7 +1,7 @@
 # Aniva — 下一步计划
 
-> 最后更新：2026-05-01 (Phase 3.19)
-> 状态：v0.0.0.1 核心动力学搭建完成，默认参数已校准
+> 最后更新：2026-05-01 (Phase 4.2)
+> 状态：v0.0.0.1 核心动力学搭建完成，环境刺激接口已接入，刺激响应实验完成
 
 ---
 
@@ -16,6 +16,9 @@
 | 3.17 | synaptic response saturation (符号分离) | ✅ |
 | 3.18 | E/I 平衡细扫 + 多 seed 验证 | ✅ |
 | 3.19 | 默认参数校准 | ✅ |
+| 4.0 | 点刺激环境接口 (PointStimulus + Environment) | ✅ |
+| 4.1 | 环境刺激响应实验 (exp2_stimulus) | ✅ |
+| 4.2 | 刺激参数扫描 (exp2_sweep, intensity × seed) | ✅ |
 
 详细记录见 `EXPERIMENT_LOG.md`。
 
@@ -42,7 +45,6 @@ threshold_softness = 0.02
 | Plasticity (连接变化) | 待定 |
 | 局部场效应 | 待定 |
 | 弥散调节 | 待定 |
-| Environment (刺激源) | 待定 |
 | Visualizer (可视化) | 待定 |
 
 ---

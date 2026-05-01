@@ -140,6 +140,66 @@ step=1000: mean_act=0.363  energy=0.365  hard=48%    ← 稳定平衡
 
 ---
 
+## Phase 4.0：点刺激环境接口
+
+**做了什么：**
+- `Stimulus` 增加 `start_step`/`duration_steps`/`is_active()`/`influence_at()`
+- `Environment` 增加 `compute_influences()`，按空间距离衰减计算各单元影响
+- `LifeCore.step()` 新增可选参数 `env_influences`，在突触传递之前应用
+- 新增 `tests/test_environment.py`（25 个环境测试）
+
+**设计原则：**
+- 环境输入在突触传递之前："外界先轻推，网络自己传播"
+- 只实现点刺激，架构预留全局刺激
+- 不影响无刺激时的 free-run 行为
+
+---
+
+## Phase 4.1：环境刺激响应实验
+
+**做了什么：**
+- 实现 `exp2_stimulus.py`：对比同 seed 下 baseline（无刺激）和 stimulus（点刺激）的轨迹
+- 记录三阶段（pre / during / post）的对比指标和 trajectory_distance
+- 支持 CLI 参数
+
+**关键发现（seed=42, intensity=0.03, 300 单元, 1000 步）：**
+```
+step=300:  traj_dist=0.000000  ← 刺激前完全一致
+step=400:  traj_dist=0.189058  ← 刺激期间明显分叉
+step=1000: traj_dist=0.125733  ← 600 步后仍未归零
+```
+
+- 刺激只直接影响 4.67% 的单元（14/300），是"轻触"而非"接管"
+- 刺激结束后 trajectory_distance 不归零，系统走上不同轨迹
+- 验证了 VISION.md 实验 2 的核心假设
+
+---
+
+## Phase 4.2：刺激参数扫描
+
+**做了什么：**
+- 实现 `exp2_stimulus_sweep.py`：批量运行 `exp2_stimulus.run()`，支持多维度扫描
+- 内置响应分类：`none`（dur_max < 0.01）、`touch`（有分叉无崩溃）、`takeover`（hard > 80% 或 energy < 0.15）
+
+**第一轮扫描（intensity 0.01/0.03/0.05 × seed 1/2/3/42/77）：**
+
+| | seed=1 | seed=2 | seed=3 | seed=42 | seed=77 |
+|---|---|---|---|---|---|
+| 0.01 | touch | touch | **none** | touch | touch |
+| 0.03 | touch | touch | touch | touch | touch |
+| 0.05 | touch | touch | touch | touch | touch |
+
+**结果：1 none / 14 touch / 0 takeover**
+
+**关键发现：**
+- `intensity=0.01` 处于边界：seed=3 近乎无视（dur_max=0.00386），不同先天结构对弱刺激敏感性不同
+- `intensity=0.03` 是稳定轻触强度：全 seed 响应，无接管
+- `intensity=0.05` 更强但安全：无接管，无能量崩溃
+- **seed=77 独特行为**：baseline 下偏冷（B_act=0.07），刺激能将其"唤醒"到正常中间态（S_act=0.36-0.39）
+  - 同一环境事件对不同先天结构产生不同命运——不是写死的
+
+---
+
 ## 当前系统状态
 
 ### 已实现的机制
@@ -157,6 +217,9 @@ step=1000: mean_act=0.363  energy=0.365  hard=48%    ← 稳定平衡
 | Synaptic response saturation | ✅ |
 | Observer / 指标系统 | ✅ |
 | 参数扫描工具 | ✅ |
+| Environment (点刺激接口) | ✅ |
+| 环境刺激响应实验 (exp2) | ✅ |
+| 刺激参数扫描 (exp2 sweep) | ✅ |
 
 ### 尚未实现
 
@@ -165,7 +228,6 @@ step=1000: mean_act=0.363  energy=0.365  hard=48%    ← 稳定平衡
 | Plasticity (连接变化) | 待定 |
 | 局部场效应 | 待定 |
 | 弥散调节 | 待定 |
-| Environment (刺激源) | 待定 |
 | Visualizer (可视化) | 待定 |
 
 ### 默认参数 (v0.0.0.1 校准后)
@@ -186,9 +248,9 @@ min_energy_activation_factor = 0.25
 
 ### 测试数
 
-**116 个**（最后更新：Phase 3.19）
+**161 个**（最后更新：Phase 4.2）
 
 ---
 
 *日志起始：2026-05-01*
-*最后更新：Phase 3.19*
+*最后更新：Phase 4.2*

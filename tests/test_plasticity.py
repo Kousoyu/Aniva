@@ -230,3 +230,170 @@ class TestPlasticityIntegration:
 
         weights_after = [c.weight for c in core.connections]
         assert weights_before == pytest.approx(weights_after)
+
+
+class TestExp5HistoryBifurcation:
+    """实验 5 集成测试."""
+
+    def test_run_two_groups_completes(self):
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+        cfg = AnivaConfig(unit_count=30, seed=42)
+        result = run_experiment(
+            config=cfg, total_steps=100,
+            snapshot_interval=50,
+            groups=["A_L", "B"],
+        )
+        assert "A_L" in result["groups"]
+        assert "B" in result["groups"]
+        assert len(result["groups"]["A_L"]["snapshots"]) >= 2
+
+    def test_snapshots_have_required_fields(self):
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+        cfg = AnivaConfig(unit_count=30, seed=42)
+        result = run_experiment(
+            config=cfg, total_steps=100,
+            snapshot_interval=50,
+            groups=["A_L"],
+        )
+        snap = result["groups"]["A_L"]["snapshots"][-1]
+        required = [
+            "step", "mean_activation", "mean_energy",
+            "hard_active_ratio", "strong_output_ratio",
+            "activation_entropy", "weight_mean", "weight_std",
+            "weight_abs_mean",
+        ]
+        for key in required:
+            assert key in snap, f"missing field: {key}"
+
+    def test_divergence_computed_for_available_pairs(self):
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+        cfg = AnivaConfig(unit_count=30, seed=42)
+        result = run_experiment(
+            config=cfg, total_steps=200,
+            snapshot_interval=100,
+            groups=["A_L", "A_R", "B"],
+        )
+        assert "A_L_vs_A_R" in result["divergence"]
+        assert "A_L_vs_B" in result["divergence"]
+        assert "final_weight_l1" in result["divergence"]["A_L_vs_A_R"]
+
+    def test_verdict_has_expected_keys(self):
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+        cfg = AnivaConfig(unit_count=30, seed=42)
+        result = run_experiment(
+            config=cfg, total_steps=200,
+            snapshot_interval=100,
+            groups=["A_L", "A_R", "B", "C", "D", "F"],
+        )
+        v = result["verdict"]
+        assert "repeatability" in v
+        assert "plasticity_causal" in v
+        assert "long_term_deposition" in v
+        assert "structural_bifurcation" in v
+
+    def test_determinism(self):
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+
+        def run_once():
+            cfg = AnivaConfig(unit_count=30, seed=77)
+            return run_experiment(
+                config=cfg, total_steps=100,
+                snapshot_interval=50,
+                groups=["A_L", "B"],
+            )
+
+        r1 = run_once()
+        r2 = run_once()
+
+        w1 = r1["groups"]["A_L"]["weights_final"]
+        w2 = r2["groups"]["A_L"]["weights_final"]
+        assert w1 == pytest.approx(w2)
+
+    def test_cli_runs(self):
+        import sys
+        from io import StringIO
+        from aniva.experiments.exp5_history_bifurcation import main
+
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = StringIO()
+            exit_code = main([
+                "--steps", "100",
+                "--seed", "42",
+                "--unit-count", "30",
+                "--snapshot-interval", "50",
+                "--groups", "A_L", "B",
+            ])
+            assert exit_code == 0
+        finally:
+            sys.stdout = old_stdout
+
+    def test_weight_bounds_after_experiment(self):
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+        cfg = AnivaConfig(unit_count=30, seed=42,
+                          plasticity_rate=0.01)
+        result = run_experiment(
+            config=cfg, total_steps=100,
+            snapshot_interval=50,
+            groups=["A_L"],
+        )
+        w = result["groups"]["A_L"]["weights_final"]
+        assert all((-1.0 <= wi <= 1.0) for wi in w)
+
+    def test_csv_output_creates_file(self, tmp_path):
+        import sys
+        from io import StringIO
+        from aniva.experiments.exp5_history_bifurcation import main
+
+        csv_path = tmp_path / "exp5.csv"
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = StringIO()
+            exit_code = main([
+                "--steps", "100",
+                "--seed", "42",
+                "--unit-count", "30",
+                "--snapshot-interval", "50",
+                "--groups", "A_L", "B",
+                "--output-csv", str(csv_path),
+            ])
+            assert exit_code == 0
+        finally:
+            sys.stdout = old_stdout
+        assert csv_path.exists()
+
+    def test_activation_entropy_in_range(self):
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+        cfg = AnivaConfig(unit_count=30, seed=42)
+        result = run_experiment(
+            config=cfg, total_steps=100,
+            snapshot_interval=50,
+            groups=["A_L"],
+        )
+        for snap in result["groups"]["A_L"]["snapshots"]:
+            ent = snap["activation_entropy"]
+            assert ent >= 0.0, f"entropy should be >= 0, got {ent}"
+            # max entropy for 20 bins ≈ log(20) ≈ 2.996
+            assert ent <= 3.0, f"entropy should be <= log(20) ≈ 3.0, got {ent}"
+
+    def test_same_stimulus_group_determinism(self):
+        """A_L 和 C 是相同刺激组，应接近但不强制 bit-perfect。"""
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+        cfg = AnivaConfig(unit_count=30, seed=42)
+        result = run_experiment(
+            config=cfg, total_steps=100,
+            snapshot_interval=50,
+            groups=["A_L", "C"],
+        )
+        # Same stimuli, same seed → should be identical
+        al_w = result["groups"]["A_L"]["weights_final"]
+        c_w = result["groups"]["C"]["weights_final"]
+        assert al_w == pytest.approx(c_w)

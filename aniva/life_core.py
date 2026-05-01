@@ -13,6 +13,7 @@ from aniva.core.connection import Connection
 from aniva.core.noise import apply_noise
 from aniva.core.energy import consume_energy, recover_energy
 from aniva.core.dynamics import compute_synaptic_input
+from aniva.core.plasticity import apply_plasticity
 
 
 class LifeCore:
@@ -105,6 +106,7 @@ class LifeCore:
         4. 能量消耗 → 活跃消耗能量
         5. 能量恢复 → 能量缓慢自然恢复
         6. 痕迹更新 → activation 加深痕迹，痕迹缓慢衰减
+        7. 可塑性 → 连接权重根据共活性 + 能量门控 + 遗忘更新
 
         Args:
             env_influences: 可选，{uid: influence} 映射，由 Environment 计算。
@@ -158,6 +160,11 @@ class LifeCore:
             # Trace: 活跃加深痕迹，再整体缓慢衰减
             unit.trace += unit.activation * dt
             unit.trace *= 1.0 - cfg.trace_decay_rate * dt
+        # 7. 可塑性：连接权重根据共活性变化（最后执行，用当前步最终状态）
+        apply_plasticity(
+            self.connections, self.units,
+            cfg.plasticity_rate, cfg.threshold_softness, dt,
+        )
         self.step_count += 1
 
     @property

@@ -511,3 +511,173 @@ class TestExp2Stimulus:
             f"trajectory distance should grow during stimulus: "
             f"first_quarter={first_quarter:.8f}, last_quarter={last_quarter:.8f}"
         )
+
+
+class TestExp2StimulusSweep:
+    """实验 2 参数扫描测试."""
+
+    def test_sweep_completes_without_error(self):
+        from aniva.experiments.exp2_stimulus_sweep import sweep
+        rows = sweep(
+            total_steps=80,
+            intensities=(0.01, 0.03),
+            radii=(0.5,),
+            stim_starts=(30,),
+            stim_durations=(20,),
+            seeds=(42, 77),
+        )
+        # 2 intensities × 2 seeds = 4 rows
+        assert len(rows) == 4
+
+    def test_sweep_row_count_matches_combinations(self):
+        from aniva.experiments.exp2_stimulus_sweep import sweep
+        rows = sweep(
+            total_steps=60,
+            intensities=(0.01, 0.05),
+            radii=(0.5, 0.7),
+            stim_starts=(20,),
+            stim_durations=(15,),
+            seeds=(1, 42),
+        )
+        # 2 × 2 × 1 × 1 × 2 = 8
+        assert len(rows) == 8
+
+    def test_row_has_all_required_fields(self):
+        from aniva.experiments.exp2_stimulus_sweep import sweep
+        rows = sweep(
+            total_steps=60,
+            intensities=(0.03,),
+            radii=(0.5,),
+            stim_starts=(20,),
+            stim_durations=(15,),
+            seeds=(42,),
+        )
+        assert len(rows) == 1
+        r = rows[0]
+        required = [
+            "seed", "stim_intensity", "stim_radius", "stim_start",
+            "stim_duration", "stimulated_unit_ratio",
+            "during_max_trajectory_distance", "during_mean_trajectory_distance",
+            "post_final_trajectory_distance", "post_mean_trajectory_distance",
+            "baseline_final_mean_activation", "stimulus_final_mean_activation",
+            "baseline_final_mean_energy", "stimulus_final_mean_energy",
+            "baseline_final_hard_active_ratio", "stimulus_final_hard_active_ratio",
+            "baseline_final_strong_output_ratio",
+            "stimulus_final_strong_output_ratio",
+            "response_class",
+        ]
+        for key in required:
+            assert key in r, f"missing field: {key}"
+
+    def test_response_class_is_valid(self):
+        from aniva.experiments.exp2_stimulus_sweep import sweep
+        rows = sweep(
+            total_steps=60,
+            intensities=(0.01, 0.03, 0.05),
+            radii=(0.5,),
+            stim_starts=(20,),
+            stim_durations=(15,),
+            seeds=(42,),
+        )
+        for r in rows:
+            assert r["response_class"] in ("none", "touch", "takeover"), (
+                f"invalid response_class: {r['response_class']}"
+            )
+
+    def test_sweep_determinism(self):
+        from aniva.experiments.exp2_stimulus_sweep import sweep
+
+        def run_once():
+            return sweep(
+                total_steps=50,
+                intensities=(0.01, 0.03),
+                radii=(0.5,),
+                stim_starts=(20,),
+                stim_durations=(10,),
+                seeds=(42,),
+            )
+
+        r1 = run_once()
+        r2 = run_once()
+        for row_a, row_b in zip(r1, r2):
+            for key in row_a:
+                assert row_a[key] == pytest.approx(row_b[key]), (
+                    f"non-deterministic field: {key}"
+                )
+
+    def test_cli_runs_without_error(self):
+        import sys
+        from io import StringIO
+        from aniva.experiments.exp2_stimulus_sweep import main
+
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = StringIO()
+            exit_code = main([
+                "--intensity", "0.01", "0.03",
+                "--radius", "0.5",
+                "--stim-start", "20",
+                "--stim-duration", "15",
+                "--seeds", "42", "77",
+                "--unit-count", "30",
+                "--steps", "50",
+            ])
+            assert exit_code == 0
+        finally:
+            sys.stdout = old_stdout
+
+    def test_csv_output_creates_file(self, tmp_path):
+        from aniva.experiments.exp2_stimulus_sweep import main
+        import sys
+        from io import StringIO
+
+        csv_path = tmp_path / "sweep.csv"
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = StringIO()
+            exit_code = main([
+                "--intensity", "0.01", "0.03",
+                "--radius", "0.5",
+                "--stim-start", "20",
+                "--stim-duration", "15",
+                "--seeds", "42",
+                "--unit-count", "30",
+                "--steps", "50",
+                "--output-csv", str(csv_path),
+            ])
+            assert exit_code == 0
+        finally:
+            sys.stdout = old_stdout
+        assert csv_path.exists()
+
+    def test_touch_detected_for_default_params(self):
+        """默认参数下 intensity=0.03 应该被分类为 touch。"""
+        from aniva.experiments.exp2_stimulus_sweep import sweep
+        rows = sweep(
+            total_steps=200,
+            intensities=(0.03,),
+            radii=(0.5,),
+            stim_starts=(50,),
+            stim_durations=(50,),
+            seeds=(42,),
+        )
+        assert len(rows) == 1
+        assert rows[0]["response_class"] == "touch", (
+            f"expected touch, got {rows[0]['response_class']}"
+        )
+
+    def test_weak_intensity_classified_as_none(self):
+        """极低 intensity 应该被分类为 none。"""
+        from aniva.experiments.exp2_stimulus_sweep import sweep
+        rows = sweep(
+            total_steps=100,
+            intensities=(1e-6,),
+            radii=(0.1,),
+            stim_starts=(30,),
+            stim_durations=(30,),
+            seeds=(42,),
+        )
+        assert len(rows) == 1
+        assert rows[0]["response_class"] == "none", (
+            f"expected none, got {rows[0]['response_class']}"
+        )

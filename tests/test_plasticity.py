@@ -397,3 +397,129 @@ class TestExp5HistoryBifurcation:
         al_w = result["groups"]["A_L"]["weights_final"]
         c_w = result["groups"]["C"]["weights_final"]
         assert al_w == pytest.approx(c_w)
+
+
+    def test_propagates_homeostasis_config_to_run_group(self):
+        """regression: _run_group 必须透传 homeostasis 配置，不能丢失。"""
+        from aniva.experiments.exp5_history_bifurcation import run_experiment
+        from aniva.config import AnivaConfig
+        cfg = AnivaConfig(
+            unit_count=30, seed=42,
+            plasticity_rate=0.0001,
+            homeostasis_enabled=True,
+            homeostatic_target_abs_weight=0.30,
+            homeostatic_rate=1.0,
+        )
+        result = run_experiment(
+            config=cfg, total_steps=50,
+            snapshot_interval=50,
+            groups=["A_L"],
+        )
+        g = result["groups"]["A_L"]
+        assert g["homeostasis_enabled"] is True, (
+            "homeostasis_enabled should propagate to _run_group"
+        )
+        assert g["homeostatic_target_abs_weight"] == 0.30
+        assert g["homeostatic_rate"] == 1.0
+
+
+class TestHomeostasis:
+    """Homeostatic maintenance 测试."""
+
+    def test_homeostasis_off_preserves_old_behavior(self):
+        """homeostasis_enabled=False 时行为与之前一致。"""
+        cfg = AnivaConfig(
+            unit_count=50, seed=42,
+            plasticity_rate=0.01,
+            homeostasis_enabled=False,
+        )
+        core = LifeCore(cfg)
+        for _ in range(50):
+            core.step()
+        abs_weights = [abs(c.weight) for c in core.connections]
+        assert sum(abs_weights) / len(abs_weights) < 0.5  # decay has reduced
+
+    def test_homeostasis_on_pulls_toward_target(self):
+        """homeostasis_enabled=True 时 weight_abs_mean 向 target 靠拢。"""
+        cfg = AnivaConfig(
+            unit_count=50, seed=42,
+            plasticity_rate=0.01,
+            homeostasis_enabled=True,
+            homeostatic_target_abs_weight=0.30,
+            homeostatic_rate=1.0,
+        )
+        core = LifeCore(cfg)
+        for _ in range(100):
+            core.step()
+        abs_weights = [abs(c.weight) for c in core.connections]
+        current_mean = sum(abs_weights) / len(abs_weights)
+        # With rate=1.0, should stay at or near target
+        assert current_mean >= 0.25, (
+            f"weight_abs_mean={current_mean} below expected range"
+        )
+
+    def test_homeostasis_does_not_flip_weight_sign(self):
+        """稳态缩放不应翻转权重符号。"""
+        cfg = AnivaConfig(
+            unit_count=50, seed=42,
+            plasticity_rate=0.05,
+            homeostasis_enabled=True,
+            homeostatic_target_abs_weight=0.30,
+            homeostatic_rate=1.0,
+        )
+        core = LifeCore(cfg)
+        signs_before = [1 if c.weight >= 0 else -1 for c in core.connections]
+        for _ in range(50):
+            core.step()
+        signs_after = [1 if c.weight >= 0 else -1 for c in core.connections]
+        assert signs_before == signs_after
+
+    def test_homeostasis_keeps_weights_in_bounds(self):
+        """稳态缩放不破坏权重边界 [-1, 1]。"""
+        cfg = AnivaConfig(
+            unit_count=50, seed=42,
+            plasticity_rate=0.01,
+            homeostasis_enabled=True,
+            homeostatic_target_abs_weight=0.30,
+            homeostatic_rate=1.0,
+        )
+        core = LifeCore(cfg)
+        for _ in range(200):
+            core.step()
+        for conn in core.connections:
+            assert -1.0 <= conn.weight <= 1.0
+
+    def test_homeostasis_determinism(self):
+        """稳态缩放应完全确定性。"""
+        def run():
+            cfg = AnivaConfig(
+                unit_count=30, seed=99,
+                plasticity_rate=0.01,
+                homeostasis_enabled=True,
+                homeostatic_target_abs_weight=0.30,
+                homeostatic_rate=1.0,
+            )
+            core = LifeCore(cfg)
+            for _ in range(50):
+                core.step()
+            return [c.weight for c in core.connections]
+
+        assert run() == pytest.approx(run())
+
+    def test_homeostasis_noop_when_above_target(self):
+        """weight_abs_mean 高于 target 时不强制压低。"""
+        cfg = AnivaConfig(
+            unit_count=30, seed=42,
+            plasticity_rate=0.0,  # no decay
+            homeostasis_enabled=True,
+            homeostatic_target_abs_weight=0.05,  # very low target
+            homeostatic_rate=1.0,
+        )
+        core = LifeCore(cfg)
+        initial_mean = sum(abs(c.weight) for c in core.connections) / len(core.connections)
+        assert initial_mean > 0.05  # weights start high
+        for _ in range(20):
+            core.step()
+        final_mean = sum(abs(c.weight) for c in core.connections) / len(core.connections)
+        # With plasticity_rate=0 and low target, should not be forcibly lowered
+        assert final_mean == pytest.approx(initial_mean)

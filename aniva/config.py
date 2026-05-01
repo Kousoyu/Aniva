@@ -48,6 +48,9 @@ class AnivaConfig:
     threshold_softness: float = 0.02
     plasticity_rate: float = 0.0001
     spatial_radius: float = 1.0
+    homeostasis_enabled: bool = False
+    homeostatic_target_abs_weight: float = 0.30
+    homeostatic_rate: float = 1.0
 
     def __post_init__(self):
         if self.unit_count < 1:

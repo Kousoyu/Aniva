@@ -165,6 +165,15 @@ class LifeCore:
             self.connections, self.units,
             cfg.plasticity_rate, cfg.threshold_softness, dt,
         )
+        # 8. 稳态维持：防止 weight_abs_mean 持续衰减导致系统静默
+        if cfg.homeostasis_enabled and self.connections:
+            current = sum(abs(c.weight) for c in self.connections) / len(self.connections)
+            if current > 1e-12 and current < cfg.homeostatic_target_abs_weight:
+                target = cfg.homeostatic_target_abs_weight
+                scale = 1.0 + cfg.homeostatic_rate * ((target / current) - 1.0)
+                for conn in self.connections:
+                    conn.weight *= scale
+                    conn.weight = max(-1.0, min(1.0, conn.weight))
         self.step_count += 1
 
     @property

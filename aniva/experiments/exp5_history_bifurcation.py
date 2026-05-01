@@ -193,6 +193,9 @@ def _run_group(
         seed=config.seed,
         unit_count=config.unit_count,
         plasticity_rate=rate,
+        homeostasis_enabled=config.homeostasis_enabled,
+        homeostatic_target_abs_weight=config.homeostatic_target_abs_weight,
+        homeostatic_rate=config.homeostatic_rate,
     )
 
     core = LifeCore(cfg)
@@ -247,6 +250,9 @@ def _run_group(
         "group": group_name,
         "label": gdef["label"],
         "plasticity_rate": rate,
+        "homeostasis_enabled": cfg.homeostasis_enabled,
+        "homeostatic_target_abs_weight": cfg.homeostatic_target_abs_weight,
+        "homeostatic_rate": cfg.homeostatic_rate,
         "snapshots": snapshots,
         "checkpoints": checkpoints,
         "weights_initial": weights_initial,
@@ -568,9 +574,15 @@ def main(argv: list[str] | None = None) -> int:
         "--plasticity-rate", type=float, default=None,
         help="覆盖所有组的 plasticity_rate（默认使用 GROUP_DEFS 值）"
     )
+    parser.add_argument(
+        "--homeostasis-enabled", action="store_true", default=None,
+        help="启用 homeostatic maintenance，防止 weight decay 导致系统静默"
+    )
     args = parser.parse_args(argv)
 
     config = AnivaConfig(seed=args.seed, unit_count=args.unit_count)
+    if args.homeostasis_enabled is not None:
+        config.homeostasis_enabled = args.homeostasis_enabled
 
     result = run_experiment(
         config=config,

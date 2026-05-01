@@ -333,3 +333,181 @@ class TestLifeCoreWithEnvironment:
             abs(a - b) < 1e-12
             for a, b in zip(traces_with, traces_without)
         )
+
+
+class TestExp2Stimulus:
+    """实验 2 集成测试 — exp2_stimulus.run() 端到端验证."""
+
+    def test_run_completes_without_error(self):
+        from aniva.experiments.exp2_stimulus import run
+        cfg = AnivaConfig(unit_count=50, seed=42)
+        result = run(
+            config=cfg, total_steps=100,
+            stim_start=30, stim_duration=20,
+            stim_radius=0.5, stim_intensity=0.03,
+            report_interval=999,  # suppress output
+        )
+        assert result["config_seed"] == 42
+        assert result["total_steps"] == 100
+        assert len(result["trajectory_history"]) == 100
+
+    def test_pre_stimulus_trajectories_near_identical(self):
+        """同 seed 下，刺激开始前 baseline 和 stimulus 轨迹应接近一致。"""
+        from aniva.experiments.exp2_stimulus import run
+        cfg = AnivaConfig(unit_count=50, seed=42)
+        result = run(
+            config=cfg, total_steps=100,
+            stim_start=50, stim_duration=20,
+            stim_radius=0.5, stim_intensity=0.03,
+            report_interval=999,
+        )
+        # Pre-stimulus phase: trajectory_distance should be near 0
+        pre_dists = [
+            h["trajectory_distance"]
+            for h in result["trajectory_history"]
+            if h["phase"] == "pre_stimulus"
+        ]
+        assert len(pre_dists) > 0
+        max_pre_dist = max(pre_dists)
+        assert max_pre_dist < 1e-6, (
+            f"pre_stimulus trajectories should be identical, "
+            f"got max distance={max_pre_dist}"
+        )
+
+    def test_during_stimulus_trajectory_diverges(self):
+        """刺激期间 trajectory_distance 应大于 0（轨迹分叉）。"""
+        from aniva.experiments.exp2_stimulus import run
+        cfg = AnivaConfig(unit_count=50, seed=42)
+        result = run(
+            config=cfg, total_steps=100,
+            stim_start=30, stim_duration=30,
+            stim_radius=0.5, stim_intensity=0.03,
+            report_interval=999,
+        )
+        during_dists = [
+            h["trajectory_distance"]
+            for h in result["trajectory_history"]
+            if h["phase"] == "during_stimulus"
+        ]
+        assert len(during_dists) > 0
+        assert max(during_dists) > 0, (
+            "trajectory_distance should increase during stimulus"
+        )
+
+    def test_post_stimulus_distance_recorded(self):
+        """刺激结束后 trajectory_distance 仍可记录（不归零）。"""
+        from aniva.experiments.exp2_stimulus import run
+        cfg = AnivaConfig(unit_count=50, seed=42)
+        result = run(
+            config=cfg, total_steps=150,
+            stim_start=30, stim_duration=30,
+            stim_radius=0.5, stim_intensity=0.03,
+            report_interval=999,
+        )
+        post_dists = [
+            h["trajectory_distance"]
+            for h in result["trajectory_history"]
+            if h["phase"] == "post_stimulus"
+        ]
+        assert len(post_dists) > 0
+
+    def test_stimulated_unit_ratio_in_range(self):
+        from aniva.experiments.exp2_stimulus import run
+        cfg = AnivaConfig(unit_count=100, seed=42)
+        result = run(
+            config=cfg, total_steps=50,
+            stim_start=20, stim_duration=10,
+            stim_radius=0.5, stim_intensity=0.03,
+            report_interval=999,
+        )
+        ratio = result["stimulated_unit_ratio"]
+        assert 0.0 <= ratio <= 1.0
+        # With radius=0.5 in a [-1,1] space, some units should be in range
+        assert ratio > 0.0, "at least some units should be in stimulus radius"
+
+    def test_phase_summaries_have_all_phases(self):
+        from aniva.experiments.exp2_stimulus import run
+        cfg = AnivaConfig(unit_count=50, seed=42)
+        result = run(
+            config=cfg, total_steps=60,
+            stim_start=20, stim_duration=20,
+            stim_radius=0.5, stim_intensity=0.03,
+            report_interval=999,
+        )
+        for phase in ["pre_stimulus", "during_stimulus", "post_stimulus"]:
+            assert phase in result["phase_summaries"]
+            summary = result["phase_summaries"][phase]
+            assert summary["step_count"] > 0
+            assert "baseline" in summary
+            assert "stimulus" in summary
+
+    def test_determinism_same_params_same_result(self):
+        """相同参数运行两次应得到完全一致的结果。"""
+        from aniva.experiments.exp2_stimulus import run
+
+        def run_once():
+            cfg = AnivaConfig(unit_count=30, seed=77)
+            return run(
+                config=cfg, total_steps=50,
+                stim_start=20, stim_duration=15,
+                stim_radius=0.5, stim_intensity=0.03,
+                report_interval=999,
+            )
+
+        r1 = run_once()
+        r2 = run_once()
+
+        # trajectory history should be identical
+        d1 = [h["trajectory_distance"] for h in r1["trajectory_history"]]
+        d2 = [h["trajectory_distance"] for h in r2["trajectory_history"]]
+        assert d1 == pytest.approx(d2)
+
+        # final metrics should match
+        for key in ["mean_activation", "mean_energy", "hard_active_ratio"]:
+            assert r1["final_stimulus_metrics"][key] == pytest.approx(
+                r2["final_stimulus_metrics"][key]
+            )
+
+    def test_cli_runs_without_error(self):
+        import sys
+        from io import StringIO
+        from aniva.experiments.exp2_stimulus import main
+
+        old_stdout = sys.stdout
+        try:
+            sys.stdout = StringIO()
+            exit_code = main([
+                "--steps", "50",
+                "--seed", "42",
+                "--unit-count", "30",
+                "--stim-start", "20",
+                "--stim-duration", "10",
+                "--stim-radius", "0.5",
+                "--stim-intensity", "0.03",
+            ])
+            assert exit_code == 0
+        finally:
+            sys.stdout = old_stdout
+
+    def test_trajectory_distance_grows_over_time(self):
+        """刺激期间 trajectory_distance 应随时间增长（累积效应）。"""
+        from aniva.experiments.exp2_stimulus import run
+        cfg = AnivaConfig(unit_count=50, seed=42)
+        result = run(
+            config=cfg, total_steps=100,
+            stim_start=20, stim_duration=50,
+            stim_radius=0.5, stim_intensity=0.03,
+            report_interval=999,
+        )
+        during_dists = [
+            h["trajectory_distance"]
+            for h in result["trajectory_history"]
+            if h["phase"] == "during_stimulus"
+        ]
+        # Check that the last few distances in the phase are larger than the first few
+        first_quarter = np.mean(during_dists[: max(1, len(during_dists) // 4)])
+        last_quarter = np.mean(during_dists[-max(1, len(during_dists) // 4):])
+        assert last_quarter >= first_quarter, (
+            f"trajectory distance should grow during stimulus: "
+            f"first_quarter={first_quarter:.8f}, last_quarter={last_quarter:.8f}"
+        )

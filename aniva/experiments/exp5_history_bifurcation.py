@@ -169,8 +169,12 @@ def _run_group(
     group_name: str,
     total_steps: int,
     snapshot_interval: int = 1000,
+    plasticity_rate: float | None = None,
 ) -> dict:
     """运行一个实验组，记录定期快照。
+
+    Args:
+        plasticity_rate: 覆盖 GROUP_DEFS 中的 plasticity_rate。None 则使用默认。
 
     Returns:
         dict: {
@@ -184,11 +188,11 @@ def _run_group(
     """
     gdef = GROUP_DEFS[group_name]
 
-    # 覆盖 plasticity_rate
+    rate = plasticity_rate if plasticity_rate is not None else gdef["plasticity_rate"]
     cfg = AnivaConfig(
         seed=config.seed,
         unit_count=config.unit_count,
-        plasticity_rate=gdef["plasticity_rate"],
+        plasticity_rate=rate,
     )
 
     core = LifeCore(cfg)
@@ -242,7 +246,7 @@ def _run_group(
     return {
         "group": group_name,
         "label": gdef["label"],
-        "plasticity_rate": gdef["plasticity_rate"],
+        "plasticity_rate": rate,
         "snapshots": snapshots,
         "checkpoints": checkpoints,
         "weights_initial": weights_initial,
@@ -341,14 +345,16 @@ def run_experiment(
     total_steps: int = 20000,
     snapshot_interval: int = 1000,
     groups: list[str] | None = None,
+    plasticity_rate: float | None = None,
 ) -> dict:
     """运行历史分叉实验。
 
     Args:
         config: 基础配置。
-        total_steps: 每组总步数（会被 GROUP_DEFS 覆盖）。
+        total_steps: 每组总步数。
         snapshot_interval: 快照间隔。
         groups: 要运行的组名列表，None 则运行全部 6 组。
+        plasticity_rate: 覆盖所有组的 plasticity_rate。None 则使用 GROUP_DEFS 默认值。
 
     Returns:
         dict: 包含各组快照、分歧曲线、判定结果。
@@ -362,7 +368,10 @@ def run_experiment(
     group_results: dict[str, dict] = {}
     for gname in groups:
         print(f"Running group {gname} ({GROUP_DEFS[gname]['label']})...")
-        result = _run_group(config, gname, total_steps, snapshot_interval)
+        result = _run_group(
+            config, gname, total_steps, snapshot_interval,
+            plasticity_rate=plasticity_rate,
+        )
         group_results[gname] = result
         final = result["snapshots"][-1]
         print(
@@ -555,6 +564,10 @@ def main(argv: list[str] | None = None) -> int:
         "--output-csv", type=str, default=None,
         help="保存快照到 CSV"
     )
+    parser.add_argument(
+        "--plasticity-rate", type=float, default=None,
+        help="覆盖所有组的 plasticity_rate（默认使用 GROUP_DEFS 值）"
+    )
     args = parser.parse_args(argv)
 
     config = AnivaConfig(seed=args.seed, unit_count=args.unit_count)
@@ -564,6 +577,7 @@ def main(argv: list[str] | None = None) -> int:
         total_steps=args.steps,
         snapshot_interval=args.snapshot_interval,
         groups=args.groups,
+        plasticity_rate=args.plasticity_rate,
     )
 
     _print_results(result)

@@ -92,21 +92,36 @@ class LifeCore:
             self.connections.append(conn)
             self._next_cid += 1
 
-    def step(self) -> None:
+    def step(
+        self, env_influences: Optional[dict[int, float]] = None
+    ) -> None:
         """推进一个时间步。
 
         对每个 Unit 依次执行：
-        0. 突触输入 → 加权信号聚合到 target，受 target energy 调制
-        1. 噪声扰动 → activation 接受微小随机波动
-        2. 自然回落 → activation 向 baseline 漂移
-        3. 能量消耗 → 活跃消耗能量
-        4. 能量恢复 → 能量缓慢自然恢复
-        5. 痕迹更新 → activation 加深痕迹，痕迹缓慢衰减
+        0. 环境输入 → 外界刺激先轻推受影响单元（在突触传递之前）
+        1. 突触输入 → 加权信号聚合到 target，受 target energy 调制
+        2. 噪声扰动 → activation 接受微小随机波动
+        3. 自然回落 → activation 向 baseline 漂移
+        4. 能量消耗 → 活跃消耗能量
+        5. 能量恢复 → 能量缓慢自然恢复
+        6. 痕迹更新 → activation 加深痕迹，痕迹缓慢衰减
+
+        Args:
+            env_influences: 可选，{uid: influence} 映射，由 Environment 计算。
+                外部先轻推，网络内部再自行传播。
         """
         dt = self.config.dt
         cfg = self.config
 
-        # 0. 突触传递：先计算所有输入，再统一应用（避免顺序依赖）
+        # 0. 环境输入：外界先推动（在突触传递之前，让信号由网络自行传播）
+        if env_influences:
+            for uid, influence in env_influences.items():
+                unit = self.units.get(uid)
+                if unit is not None:
+                    unit.activation += influence * dt
+                    unit.activation = max(0.0, min(1.0, unit.activation))
+
+        # 1. 突触传递：先计算所有输入，再统一应用（避免顺序依赖）
         #    target 的 energy 调制其对输入的响应强度
         synaptic_inputs = compute_synaptic_input(self.connections, self.units, cfg.threshold_softness)
         for uid, inp in synaptic_inputs.items():

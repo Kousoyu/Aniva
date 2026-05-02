@@ -51,6 +51,7 @@ class AnivaConfig:
     homeostasis_enabled: bool = False
     homeostatic_target_abs_weight: float = 0.30
     homeostatic_rate: float = 1.0
+    use_numba_plasticity: bool = False
 
     def __post_init__(self):
         if self.unit_count < 1:

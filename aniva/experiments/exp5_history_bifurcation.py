@@ -209,6 +209,7 @@ def _run_group(
         homeostasis_enabled=config.homeostasis_enabled,
         homeostatic_target_abs_weight=config.homeostatic_target_abs_weight,
         homeostatic_rate=config.homeostatic_rate,
+        use_numba_plasticity=config.use_numba_plasticity,
     )
 
     core = LifeCore(cfg)
@@ -267,6 +268,7 @@ def _run_group(
         "homeostasis_enabled": cfg.homeostasis_enabled,
         "homeostatic_target_abs_weight": cfg.homeostatic_target_abs_weight,
         "homeostatic_rate": cfg.homeostatic_rate,
+        "use_numba_plasticity": cfg.use_numba_plasticity,
         "snapshots": snapshots,
         "checkpoints": checkpoints,
         "weights_initial": weights_initial,
@@ -401,6 +403,7 @@ def run_experiment(
             homeostasis_enabled=config.homeostasis_enabled,
             homeostatic_target_abs_weight=config.homeostatic_target_abs_weight,
             homeostatic_rate=config.homeostatic_rate,
+            use_numba_plasticity=config.use_numba_plasticity,
         )
 
         group_results: dict[str, dict] = {}
@@ -718,11 +721,15 @@ def _save_csv(result: dict, path: str) -> None:
 def _make_summary(result: dict) -> dict:
     """从实验结果提取精简 summary（适合 JSON 序列化）。"""
     if "per_seed" in result:
+        first_seed = result["per_seed"][0]
+        first_group = next(iter(first_seed["groups"].values()))
         return {
             "mode": "multi_seed",
             "seeds": result["seeds"],
             "unit_count": result["unit_count"],
             "total_steps": result["total_steps"],
+            "homeostasis_enabled": first_group.get("homeostasis_enabled", False),
+            "use_numba_plasticity": first_group.get("use_numba_plasticity", False),
             "per_seed": [_make_single_summary(r) for r in result["per_seed"]],
             "aggregate": _serialize_aggregate(result["aggregate"]),
         }
@@ -756,10 +763,14 @@ def _make_single_summary(r: dict) -> dict:
             if isinstance(v, (float, int)) and not isinstance(v, bool)
         }
 
+    # 从第一个 group 提取配置信息（所有 group 共用同一 config）
+    first_group = next(iter(r["groups"].values()))
     return {
         "seed": r["seed"],
         "unit_count": r["unit_count"],
         "total_steps": r["total_steps"],
+        "homeostasis_enabled": first_group.get("homeostasis_enabled", False),
+        "use_numba_plasticity": first_group.get("use_numba_plasticity", False),
         "groups": groups_summary,
         "divergence": divergence_summary,
         "verdict": {k: v for k, v in r["verdict"].items() if not isinstance(v, dict)},
@@ -838,11 +849,16 @@ def main(argv: list[str] | None = None) -> int:
         "--summary-only", action="store_true", default=False,
         help="只输出 summary JSON，跳过 CSV"
     )
+    parser.add_argument(
+        "--use-numba-plasticity", action="store_true", default=False,
+        help="启用 Numba plasticity 加速后端（Numba 不可用时自动降级为 scalar）"
+    )
     args = parser.parse_args(argv)
 
     config = AnivaConfig(seed=args.seed, unit_count=args.unit_count)
     if args.homeostasis_enabled is not None:
         config.homeostasis_enabled = args.homeostasis_enabled
+    config.use_numba_plasticity = args.use_numba_plasticity
 
     result = run_experiment(
         config=config,

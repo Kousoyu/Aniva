@@ -13,6 +13,12 @@ from aniva.core.energy import consume_energy, recover_energy
 from aniva.core.dynamics import compute_synaptic_input, compute_synaptic_input_vectorized
 from aniva.core.plasticity import apply_plasticity
 
+try:
+    from aniva.core.plasticity_numba import apply_plasticity_numba, NUMBA_AVAILABLE
+except ImportError:
+    NUMBA_AVAILABLE = False
+    apply_plasticity_numba = None
+
 
 class _UnitProxy:
     """数组支持的 Unit 兼容代理，用于向后兼容外部代码。
@@ -179,6 +185,11 @@ class LifeCore:
         for i, conn in enumerate(self.connections):
             self._weight_cache[i] = conn.weight
 
+    def _sync_connections_from_cache(self) -> None:
+        """反向同步：从权重缓存回写到 Connection.weight（Numba 路径使用）。"""
+        for i, conn in enumerate(self.connections):
+            conn.weight = self._weight_cache[i]
+
     def step(
         self, env_influences: Optional[dict[int, float]] = None
     ) -> None:
@@ -264,14 +275,23 @@ class LifeCore:
             trcs[uid] += acts[uid] * dt
             trcs[uid] *= 1.0 - cfg.trace_decay_rate * dt
 
-        # 7. 可塑性：连接权重根据共活性变化（直接传数组，无 proxy 开销）
-        apply_plasticity(
-            self.connections,
-            self._activations, self._thresholds, self._energies,
-            cfg.plasticity_rate, cfg.threshold_softness, dt,
-        )
+        # 7. 可塑性：连接权重根据共活性变化
+        if cfg.use_numba_plasticity and NUMBA_AVAILABLE:
+            # Numba 路径：原地更新 _weight_cache，再同步回 Connection
+            apply_plasticity_numba(
+                self._source_indices, self._target_indices, self._weight_cache,
+                self._activations, self._thresholds, self._energies,
+                cfg.plasticity_rate, cfg.threshold_softness, dt,
+            )
+            self._sync_connections_from_cache()
+        else:
+            apply_plasticity(
+                self.connections,
+                self._activations, self._thresholds, self._energies,
+                cfg.plasticity_rate, cfg.threshold_softness, dt,
+            )
 
-        # 8. 稳态维持
+        # 8. 稳态维持（读取 Connection.weight，两种路径均已同步）
         if cfg.homeostasis_enabled and self.connections:
             current = sum(abs(c.weight) for c in self.connections) / len(self.connections)
             if current > 1e-12 and current < cfg.homeostatic_target_abs_weight:

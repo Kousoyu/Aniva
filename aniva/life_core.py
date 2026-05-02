@@ -12,7 +12,7 @@ from aniva.core.unit import Unit
 from aniva.core.connection import Connection
 from aniva.core.noise import apply_noise
 from aniva.core.energy import consume_energy, recover_energy
-from aniva.core.dynamics import compute_synaptic_input
+from aniva.core.dynamics import compute_synaptic_input, compute_synaptic_input_vectorized
 from aniva.core.plasticity import apply_plasticity
 
 
@@ -39,6 +39,7 @@ class LifeCore:
         self._next_cid: int = 0
         self._init_units()
         self._init_connections()
+        self._build_cache_arrays()
 
     def _init_units(self) -> None:
         """初始化所有活性单元，位置在立方体空间内随机分布。"""
@@ -93,6 +94,36 @@ class LifeCore:
             self.connections.append(conn)
             self._next_cid += 1
 
+    def _build_cache_arrays(self) -> None:
+        """构建向量化计算所需的 NumPy 缓存数组。
+
+        source/target 索引在连接拓扑不变时无需重建。
+        权重缓存需在每次 plasticity/homeostasis 后同步。
+        """
+        n_conn = len(self.connections)
+        self._source_indices = np.empty(n_conn, dtype=np.int64)
+        self._target_indices = np.empty(n_conn, dtype=np.int64)
+        self._weight_cache = np.empty(n_conn, dtype=np.float64)
+        for i, conn in enumerate(self.connections):
+            self._source_indices[i] = conn.source_id
+            self._target_indices[i] = conn.target_id
+            self._weight_cache[i] = conn.weight
+
+    def _sync_weight_cache(self) -> None:
+        """同步权重缓存：在 plasticity/homeostasis 修改 Connection.weight 后调用。"""
+        for i, conn in enumerate(self.connections):
+            self._weight_cache[i] = conn.weight
+
+    def _build_unit_arrays(self) -> tuple[np.ndarray, np.ndarray]:
+        """构建 activations 和 thresholds 数组，按 uid 索引。"""
+        n = self.config.unit_count
+        acts = np.empty(n, dtype=np.float64)
+        thrs = np.empty(n, dtype=np.float64)
+        for uid, unit in self.units.items():
+            acts[uid] = unit.activation
+            thrs[uid] = unit.threshold
+        return acts, thrs
+
     def step(
         self, env_influences: Optional[dict[int, float]] = None
     ) -> None:
@@ -123,9 +154,16 @@ class LifeCore:
                     unit.activation += influence * dt
                     unit.activation = max(0.0, min(1.0, unit.activation))
 
-        # 1. 突触传递：先计算所有输入，再统一应用（避免顺序依赖）
+        # 1. 突触传递：向量化计算所有输入，再统一应用（避免顺序依赖）
         #    target 的 energy 调制其对输入的响应强度
-        synaptic_inputs = compute_synaptic_input(self.connections, self.units, cfg.threshold_softness)
+        if len(self.connections) != len(self._weight_cache):
+            self._build_cache_arrays()
+        acts, thrs = self._build_unit_arrays()
+        synaptic_inputs = compute_synaptic_input_vectorized(
+            acts, thrs,
+            self._source_indices, self._target_indices, self._weight_cache,
+            cfg.threshold_softness, cfg.unit_count,
+        )
         for uid, inp in synaptic_inputs.items():
             unit = self.units.get(uid)
             if unit is not None:
@@ -174,6 +212,8 @@ class LifeCore:
                 for conn in self.connections:
                     conn.weight *= scale
                     conn.weight = max(-1.0, min(1.0, conn.weight))
+        # 同步权重缓存：vectorized synaptic input 需要最新权重
+        self._sync_weight_cache()
         self.step_count += 1
 
     @property

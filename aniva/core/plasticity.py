@@ -1,6 +1,7 @@
 """Plasticity — 连接权重随活动历史变化.
 
 Phase 5.0: 最小 Hebbian plasticity + 连续共活性 + 能量门控 + 遗忘.
+Phase 6.5: 接受数组而非 Unit 字典，消除 proxy 开销。
 
 核心原则：
 - 局部规则：每条连接只知道 source 和 target 的当前状态
@@ -13,7 +14,7 @@ Phase 5.0: 最小 Hebbian plasticity + 连续共活性 + 能量门控 + 遗忘.
 """
 
 import math
-from aniva.core.unit import Unit
+import numpy as np
 from aniva.core.connection import Connection
 
 
@@ -33,7 +34,9 @@ def _output_strength(
 
 def apply_plasticity(
     connections: list[Connection],
-    units: dict[int, Unit],
+    activations: np.ndarray,
+    thresholds: np.ndarray,
+    energies: np.ndarray,
     plasticity_rate: float,
     threshold_softness: float,
     dt: float,
@@ -54,28 +57,28 @@ def apply_plasticity(
 
     Args:
         connections: 所有连接（原地修改 weight）。
-        units: uid -> Unit 映射。
+        activations: shape (n_units,) 按 uid 索引。
+        thresholds: shape (n_units,) 按 uid 索引。
+        energies: shape (n_units,) 按 uid 索引。
         plasticity_rate: 变化速率（极慢，默认 0.0001）。
         threshold_softness: 软阈值宽度。
         dt: 时间步长。
     """
     decay_rate = plasticity_rate * 0.5
     for conn in connections:
-        source = units.get(conn.source_id)
-        target = units.get(conn.target_id)
-        if source is None or target is None:
-            continue
+        sid = conn.source_id
+        tid = conn.target_id
 
         src_str = _output_strength(
-            source.activation, source.threshold, threshold_softness
+            float(activations[sid]), float(thresholds[sid]), threshold_softness
         )
         tgt_str = _output_strength(
-            target.activation, target.threshold, threshold_softness
+            float(activations[tid]), float(thresholds[tid]), threshold_softness
         )
         coactivity = src_str * tgt_str
 
         # 能量门控：两端任一能量低 → plasticity 减速
-        energy_gate = min(source.energy, target.energy)
+        energy_gate = min(float(energies[sid]), float(energies[tid]))
 
         # Hebbian：共激活 → 增强（保持符号方向）
         delta = plasticity_rate * coactivity * dt * energy_gate

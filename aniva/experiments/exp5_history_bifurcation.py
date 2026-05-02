@@ -24,8 +24,10 @@ Phase 5.1: 同 seed 不同刺激序列，观测结构分叉、动力学分叉、
 
 import argparse
 import csv
+import json
 import math
 import sys
+import time
 import numpy as np
 
 from aniva.config import AnivaConfig
@@ -224,6 +226,7 @@ def _run_group(
     checkpoints: dict[str, dict] = {}
     weights_initial = np.array([c.weight for c in core.connections])
     prev_weights = weights_initial.copy()
+    t_start = time.time()
 
     for step in range(total_steps):
         influences = env.compute_influences(core.units, step)
@@ -268,6 +271,7 @@ def _run_group(
         "checkpoints": checkpoints,
         "weights_initial": weights_initial,
         "weights_final": final_weights,
+        "elapsed_sec": time.time() - t_start,
     }
 
 
@@ -409,12 +413,15 @@ def run_experiment(
             )
             group_results[gname] = result
             final = result["snapshots"][-1]
+            elapsed = result.get("elapsed_sec", 0)
+            rate = final['step'] / elapsed if elapsed > 0 else 0
             print(
                 f"  done: step={final['step']} "
                 f"act={final['mean_activation']:.4f} "
                 f"eng={final['mean_energy']:.4f} "
                 f"weight_mean={final['weight_mean']:.4f} "
-                f"act_entropy={final['activation_entropy']:.4f}"
+                f"act_entropy={final['activation_entropy']:.4f} "
+                f"({elapsed:.0f}s, {rate:.0f} steps/s)"
             )
 
         divergence = _compute_divergence_curves(group_results)
@@ -708,6 +715,79 @@ def _save_csv(result: dict, path: str) -> None:
         writer.writerows(rows)
 
 
+def _make_summary(result: dict) -> dict:
+    """从实验结果提取精简 summary（适合 JSON 序列化）。"""
+    if "per_seed" in result:
+        return {
+            "mode": "multi_seed",
+            "seeds": result["seeds"],
+            "unit_count": result["unit_count"],
+            "total_steps": result["total_steps"],
+            "per_seed": [_make_single_summary(r) for r in result["per_seed"]],
+            "aggregate": _serialize_aggregate(result["aggregate"]),
+        }
+
+    return _make_single_summary(result)
+
+
+def _make_single_summary(r: dict) -> dict:
+    """单 seed summary。"""
+    groups_summary = {}
+    for gname, gdata in r["groups"].items():
+        final = gdata["snapshots"][-1]
+        groups_summary[gname] = {
+            "label": gdata["label"],
+            "plasticity_rate": gdata["plasticity_rate"],
+            "final_step": final["step"],
+            "mean_activation": final["mean_activation"],
+            "mean_energy": final["mean_energy"],
+            "hard_active_ratio": final["hard_active_ratio"],
+            "activation_entropy": final["activation_entropy"],
+            "weight_mean": final["weight_mean"],
+            "weight_std": final["weight_std"],
+            "weight_abs_mean": final["weight_abs_mean"],
+            "elapsed_sec": gdata.get("elapsed_sec", 0),
+        }
+
+    divergence_summary = {}
+    for pair_name, d in r["divergence"].items():
+        divergence_summary[pair_name] = {
+            k: v for k, v in d.items()
+            if isinstance(v, (float, int)) and not isinstance(v, bool)
+        }
+
+    return {
+        "seed": r["seed"],
+        "unit_count": r["unit_count"],
+        "total_steps": r["total_steps"],
+        "groups": groups_summary,
+        "divergence": divergence_summary,
+        "verdict": {k: v for k, v in r["verdict"].items() if not isinstance(v, dict)},
+    }
+
+
+def _serialize_aggregate(agg: dict) -> dict:
+    """确保 aggregate 值可 JSON 序列化。"""
+    out = {}
+    for k, v in agg.items():
+        if isinstance(v, float):
+            out[k] = v
+        elif isinstance(v, (list, set)):
+            out[k] = list(v)
+        elif isinstance(v, dict):
+            out[k] = {str(ks): vs for ks, vs in v.items()}
+        else:
+            out[k] = str(v) if v is not None else None
+    return out
+
+
+def _save_summary_json(result: dict, path: str) -> None:
+    """保存精简 summary JSON。"""
+    summary = _make_summary(result)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2, ensure_ascii=False, default=str)
+
+
 # ── CLI ──────────────────────────────────────────────────────────
 
 def main(argv: list[str] | None = None) -> int:
@@ -750,6 +830,14 @@ def main(argv: list[str] | None = None) -> int:
         "--seeds", type=int, nargs="+", default=None,
         help="多 seed 列表（默认单 seed）。例：--seeds 42 77 123"
     )
+    parser.add_argument(
+        "--summary-json", type=str, default=None,
+        help="保存精简 summary JSON（仅 verduct + final metrics）"
+    )
+    parser.add_argument(
+        "--summary-only", action="store_true", default=False,
+        help="只输出 summary JSON，跳过 CSV"
+    )
     args = parser.parse_args(argv)
 
     config = AnivaConfig(seed=args.seed, unit_count=args.unit_count)
@@ -767,7 +855,11 @@ def main(argv: list[str] | None = None) -> int:
 
     _print_results(result)
 
-    if args.output_csv:
+    if args.summary_json:
+        _save_summary_json(result, args.summary_json)
+        print(f"\nSaved summary JSON to {args.summary_json}")
+
+    if args.output_csv and not args.summary_only:
         _save_csv(result, args.output_csv)
         print(f"\nSaved snapshots to {args.output_csv}")
 

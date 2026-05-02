@@ -1,0 +1,117 @@
+{
+  "seed": 42,
+  "unit_count": 300,
+  "total_steps": 120000,
+  "homeostasis_enabled": true,
+  "use_numba_plasticity": true,
+  "groups": {
+    "A_L": {
+      "label": "L then R",
+      "plasticity_rate": 0.0001,
+      "final_step": 120000,
+      "mean_activation": 0.2955169056902467,
+      "mean_energy": 0.33429615149535663,
+      "hard_active_ratio": 0.45666666666666667,
+      "activation_entropy": 2.4134547258213943,
+      "weight_mean": 0.0008549665726148482,
+      "weight_std": 0.3453718971450329,
+      "weight_abs_mean": 0.30000000000000054,
+      "elapsed_sec": 375.5569431781769
+    },
+    "A_R": {
+      "label": "R then L",
+      "plasticity_rate": 0.0001,
+      "final_step": 120000,
+      "mean_activation": 0.2970677279471326,
+      "mean_energy": 0.3424711614958172,
+      "hard_active_ratio": 0.43333333333333335,
+      "activation_entropy": 2.4076912801077217,
+      "weight_mean": 0.0008537067581824775,
+      "weight_std": 0.34537674241810895,
+      "weight_abs_mean": 0.29999999999999927,
+      "elapsed_sec": 702.1633379459381
+    },
+    "C": {
+      "label": "repeat A_L",
+      "plasticity_rate": 0.0001,
+      "final_step": 120000,
+      "mean_activation": 0.2955169056902467,
+      "mean_energy": 0.33429615149535663,
+      "hard_active_ratio": 0.45666666666666667,
+      "activation_entropy": 2.4134547258213943,
+      "weight_mean": 0.0008549665726148482,
+      "weight_std": 0.3453718971450329,
+      "weight_abs_mean": 0.30000000000000054,
+      "elapsed_sec": 512.563542842865
+    },
+    "D_L": {
+      "label": "plasticity off (L then R)",
+      "plasticity_rate": 0.0,
+      "final_step": 120000,
+      "mean_activation": 0.37676665456576064,
+      "mean_energy": 0.37159163641461845,
+      "hard_active_ratio": 0.51,
+      "activation_entropy": 2.180484772273112,
+      "weight_mean": 0.00040026882538335466,
+      "weight_std": 0.5729731432465665,
+      "weight_abs_mean": 0.4969560404248361,
+      "elapsed_sec": 258.89699482917786
+    },
+    "D_R": {
+      "label": "plasticity off (R then L)",
+      "plasticity_rate": 0.0,
+      "final_step": 120000,
+      "mean_activation": 0.3577029986246448,
+      "mean_energy": 0.3945709826075406,
+      "hard_active_ratio": 0.47,
+      "activation_entropy": 2.086844750567998,
+      "weight_mean": 0.00040026882538335466,
+      "weight_std": 0.5729731432465665,
+      "weight_abs_mean": 0.4969560404248361,
+      "elapsed_sec": 372.3625452518463
+    }
+  },
+  "divergence": {
+    "A_L_vs_A_R": {
+      "final_weight_l1": 0.00010458302691956933,
+      "initial_weight_l1": 0.0,
+      "delta_weight_l1": 0.00010458302691956933,
+      "final_weight_cosine": 0.9999998684366126,
+      "initial_weight_cosine": 0.9999999999999999
+    },
+    "A_L_vs_D_L": {
+      "final_weight_l1": 0.1970021566918973,
+      "initial_weight_l1": 0.0,
+      "delta_weight_l1": 0.1970021566918973,
+      "final_weight_cosine": 0.9999552188804728,
+      "initial_weight_cosine": 0.9999999999999999
+    },
+    "C_vs_A_L": {
+      "final_weight_l1": 0.0,
+      "initial_weight_l1": 0.0,
+      "delta_weight_l1": 0.0,
+      "final_weight_cosine": 1.0,
+      "initial_weight_cosine": 0.9999999999999999
+    },
+    "D_L_vs_D_R": {
+      "final_weight_l1": 0.0,
+      "initial_weight_l1": 0.0,
+      "delta_weight_l1": 0.0,
+      "final_weight_cosine": 0.9999999999999999,
+      "initial_weight_cosine": 0.9999999999999999
+    }
+  },
+  "verdict": {
+    "repeatability": "deterministic_history_sensitive",
+    "repeat_weight_l1": 0.0,
+    "diverge_weight_l1": 0.00010458302691956933,
+    "plasticity_causal": "plasticity_drives_divergence",
+    "D_L_weight_drift": 0.0,
+    "A_L_weight_drift": 0.1970021566918973,
+    "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+    "D_L_vs_D_R_weight_l1": 0.0,
+    "structural_bifurcation": "significant",
+    "delta_weight_l1": 0.00010458302691956933,
+    "causal_skeleton_intact": true
+  }
+}

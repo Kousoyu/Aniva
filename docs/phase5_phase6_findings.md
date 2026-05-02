@@ -68,15 +68,19 @@ Global homeostatic maintenance locks `weight_abs_mean` at the target
 
 ## 5. Phase 6: Multi-Seed Validation
 
-| Seed | A_L vs A_R | Verdict | C vs A_L | D_L vs D_R | Causal Skeleton |
+| Seed | Δ_weight_L1 | Verdict | C vs A_L | D_L vs D_R | Causal Skeleton |
 |---:|---:|---|---:|---:|---|
 | 42 | 0.000105 | significant | 0.000000 | 0.000000 | intact |
+| 999 | 0.000092 | emerging | 0.000000 | 0.000000 | intact |
 | 77 | 0.000070 | emerging | 0.000000 | 0.000000 | intact |
 | 123 | 0.000062 | emerging | 0.000000 | 0.000000 | intact |
 
 **Verdict tiers:** significant (>1e-4) / emerging (5e-5 ~ 1e-4) / weak (<5e-5)
 
-All three seeds satisfy the causal skeleton:
+Across four seeds, the causal skeleton reproduced in every run. No seed
+fell into the weak bifurcation range. All seeds showed Δ_weight_L1 > 5e-5.
+
+All four seeds satisfy the causal skeleton:
 
 - `C vs A_L = 0` — same history is deterministic
 - `D_L vs D_R = 0` — plasticity-off order is irrelevant
@@ -85,14 +89,15 @@ All three seeds satisfy the causal skeleton:
 
 **Conclusion:**
 
-> The causal mechanism generalizes across seeds, but bifurcation
-> magnitude is seed-dependent.
+> The causal mechanism is reproducible across seeds. Bifurcation
+> magnitude varies by seed/topology. No seed showed weak or absent
+> structural divergence.
 
 In short:
 
 > **Mechanism is reproducible. Speed is individual.**
 
-This is not a failure of seed 77 or 123. It is the first sign of a
+This is not a failure of any individual seed. It is the first sign of a
 property Aniva needs to have: different initial topologies produce
 different developmental trajectories.
 

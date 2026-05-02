@@ -558,15 +558,28 @@ def _make_verdict(
         )
         v["F_vs_B_weight_l1"] = f_vs_b
 
-    # 结构分叉检查：A_L vs A_R 的 delta
+    # 结构分叉检查：A_L vs A_R 的 delta（三层判定）
     if "A_L_vs_A_R" in divergence:
         d = divergence["A_L_vs_A_R"]
-        v["structural_bifurcation"] = (
-            "significant"
-            if abs(d.get("delta_weight_l1", 0)) > 1e-4
-            else "negligible"
-        )
+        delta = abs(d.get("delta_weight_l1", 0))
+        if delta > 1e-4:
+            v["structural_bifurcation"] = "significant"
+        elif delta > 5e-5:
+            v["structural_bifurcation"] = "emerging"
+        else:
+            v["structural_bifurcation"] = "weak"
         v["delta_weight_l1"] = d.get("delta_weight_l1", 0)
+
+    # 因果骨架判定：可复现 + plasticity-off 对称 + plasticity 因果
+    skeleton_ok = True
+    skeleton_checks = []
+    if "repeatability" in v:
+        skeleton_checks.append(v["repeatability"] == "deterministic_history_sensitive")
+    if "plasticity_off_symmetry" in v:
+        skeleton_checks.append(v["plasticity_off_symmetry"] == "order_irrelevant_without_plasticity")
+    if "plasticity_causal" in v:
+        skeleton_checks.append(v["plasticity_causal"] == "plasticity_drives_divergence")
+    v["causal_skeleton_intact"] = all(skeleton_checks) if skeleton_checks else None
 
     return v
 

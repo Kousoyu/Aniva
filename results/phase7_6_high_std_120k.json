@@ -1,0 +1,111 @@
+{
+  "experiment": "phase7_6A_time_constant_std",
+  "seed": 42,
+  "unit_count": 300,
+  "total_steps": 120000,
+  "homeostasis_enabled": true,
+  "use_numba_plasticity": true,
+  "conditions": [
+    {
+      "condition": "high_std",
+      "factor": 2.0,
+      "manipulation": {
+        "tc_mean_before": 1.001690477293683,
+        "tc_std_before": 0.120484396370673,
+        "tc_mean_after": 1.001690477293683,
+        "tc_std_after": 0.240968792741346,
+        "factor": 2.0,
+        "clamp_range": [
+          0.5,
+          1.5
+        ]
+      },
+      "groups": {
+        "A_L": {
+          "label": "L then R",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.29343631659469066,
+          "mean_energy": 0.3453299286698817,
+          "weight_mean": 0.0008349450539594397,
+          "weight_abs_mean": 0.2999999999999999,
+          "elapsed_sec": 448.09765791893005
+        },
+        "A_R": {
+          "label": "R then L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.28793306032602173,
+          "mean_energy": 0.3486847987593805,
+          "weight_mean": 0.0008332860172880459,
+          "weight_abs_mean": 0.2999999999999999,
+          "elapsed_sec": 506.5004665851593
+        },
+        "C": {
+          "label": "repeat A_L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.29343631659469066,
+          "mean_energy": 0.3453299286698817,
+          "weight_mean": 0.0008349450539594397,
+          "weight_abs_mean": 0.2999999999999999,
+          "elapsed_sec": 455.1717929840088
+        },
+        "D_L": {
+          "label": "plasticity off (L then R)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.3744071692532611,
+          "mean_energy": 0.36953184930603944,
+          "weight_mean": 0.00040026882538335466,
+          "weight_abs_mean": 0.4969560404248361,
+          "elapsed_sec": 251.93013381958008
+        },
+        "D_R": {
+          "label": "plasticity off (R then L)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.35537910352057056,
+          "mean_energy": 0.3961154067845137,
+          "weight_mean": 0.00040026882538335466,
+          "weight_abs_mean": 0.4969560404248361,
+          "elapsed_sec": 304.18417406082153
+        }
+      },
+      "verdict": {
+        "repeatability": "deterministic_history_sensitive",
+        "repeat_weight_l1": 0.0,
+        "diverge_weight_l1": 7.730895724694706e-05,
+        "plasticity_causal": "plasticity_drives_divergence",
+        "D_L_weight_drift": 0.0,
+        "A_L_weight_drift": 0.1969976672082,
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "D_L_vs_D_R_weight_l1": 0.0,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 7.730895724694706e-05,
+        "delta_weight_l1": 7.730895724694706e-05,
+        "final_weight_cosine": 0.9999999074837964,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true
+      }
+    }
+  ],
+  "comparison": {
+    "trend": "insufficient_data",
+    "deltas": [
+      {
+        "condition": "high_std",
+        "factor": 2.0,
+        "delta_weight_l1": 7.730895724694706e-05,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 7.730895724694706e-05,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true,
+        "repeatability": "deterministic_history_sensitive",
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "tc_std_after": 0.240968792741346,
+        "tc_mean_after": 1.001690477293683
+      }
+    ]
+  }
+}

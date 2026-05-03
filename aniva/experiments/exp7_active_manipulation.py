@@ -1,13 +1,10 @@
-"""Phase 7.6A: time_constant_std Active Manipulation.
+"""Phase 7.6: Active Manipulation Experiments.
 
-Tests whether time_constant heterogeneity is a causal driver of
-history-dependent structural divergence (Δ_weight_L1).
-
-Single manipulation: adjust time_constant standard deviation while
-preserving mean. Three levels: low_std, baseline, high_std.
+7.6A: time_constant_std — test whether tc heterogeneity is a causal driver of Δ_weight_L1.
+7.6B: LR connectivity — test whether L→R coupling strength modulates Δ_weight_L1.
 
 Does NOT modify LifeCore / plasticity / dynamics core mechanisms.
-Does NOT manipulate L→R connectivity (reserved for Phase 7.6B).
+Does NOT add/delete connections (7.6B only scales existing weights).
 """
 
 import argparse
@@ -124,6 +121,94 @@ def manipulate_time_constant_std(
     }
 
 
+# ── LR connectivity manipulation (7.6B) ──────────────────────────
+
+LR_CONDITIONS = {
+    0.5: "lr_low",
+    1.0: "baseline",
+    2.0: "lr_high",
+}
+
+
+def _identify_lr_regions(
+    core: LifeCore,
+    l_stim: Stimulus,
+    r_stim: Stimulus,
+) -> tuple[set[int], set[int]]:
+    """Identify units affected by L and R stimuli."""
+    positions = core._positions
+    l_affected: set[int] = set()
+    r_affected: set[int] = set()
+    for uid in range(core.unit_count):
+        pos = tuple(positions[uid])
+        if l_stim.influence_at(pos) > 0:
+            l_affected.add(uid)
+        if r_stim.influence_at(pos) > 0:
+            r_affected.add(uid)
+    return l_affected, r_affected
+
+
+def manipulate_lr_connectivity(
+    core: LifeCore,
+    factor: float,
+    l_stim: Stimulus,
+    r_stim: Stimulus,
+    clamp_range: tuple[float, float] = (-1.0, 1.0),
+) -> dict:
+    """Scale L→R connection weights while preserving sign.
+
+    factor < 1.0 → weaker L→R coupling
+    factor = 1.0 → no change (baseline)
+    factor > 1.0 → stronger L→R coupling
+
+    Only scales existing L→R connections. Does not add or delete connections.
+    R→L connections are left untouched as a passive control.
+    Modifies Connection.weight in-place and syncs weight cache.
+    """
+    l_affected, r_affected = _identify_lr_regions(core, l_stim, r_stim)
+
+    # Find L→R connections (source in L-region, target in R-region)
+    lr_indices: list[int] = []
+    lr_weights_before: list[float] = []
+    rl_weights_before: list[float] = []
+    for i, conn in enumerate(core.connections):
+        if conn.source_id in l_affected and conn.target_id in r_affected:
+            lr_indices.append(i)
+            lr_weights_before.append(conn.weight)
+        elif conn.source_id in r_affected and conn.target_id in l_affected:
+            rl_weights_before.append(conn.weight)
+
+    # Scale L→R weights
+    lo, hi = clamp_range
+    for i in lr_indices:
+        conn = core.connections[i]
+        conn.weight *= factor
+        # Clamp while preserving sign
+        if conn.weight > hi:
+            conn.weight = hi
+        elif conn.weight < lo:
+            conn.weight = lo
+
+    core._sync_weight_cache()
+
+    lr_weights_after = [core.connections[i].weight for i in lr_indices]
+
+    return {
+        "lr_connection_count": len(lr_indices),
+        "lr_abs_weight_mean_before": float(np.mean(np.abs(lr_weights_before))) if lr_weights_before else 0.0,
+        "lr_abs_weight_mean_after": float(np.mean(np.abs(lr_weights_after))) if lr_weights_after else 0.0,
+        "lr_abs_weight_sum_before": float(np.sum(np.abs(lr_weights_before))),
+        "lr_abs_weight_sum_after": float(np.sum(np.abs(lr_weights_after))),
+        "rl_connection_count": len(rl_weights_before),
+        "rl_abs_weight_mean": float(np.mean(np.abs(rl_weights_before))) if rl_weights_before else 0.0,
+        "factor": factor,
+        "clamp_range": list(clamp_range),
+        "l_affected_count": len(l_affected),
+        "r_affected_count": len(r_affected),
+        "lr_overlap_count": len(l_affected & r_affected),
+    }
+
+
 # ── Helpers ──────────────────────────────────────────────────────
 
 def _weight_l1(wa: np.ndarray, wb: np.ndarray) -> float:
@@ -144,10 +229,15 @@ def _run_group(
     config: AnivaConfig,
     group_name: str,
     total_steps: int,
-    tc_std_factor: float,
+    manipulation_fn,
     snapshot_interval: int = 1000,
 ) -> dict:
-    """Run a single experimental group with time_constant manipulation applied."""
+    """Run a single experimental group with manipulation applied.
+
+    Args:
+        manipulation_fn: Callable[[LifeCore], dict] — applies manipulation
+            to a freshly-initialized LifeCore and returns info dict.
+    """
     gdef = _build_group_defs(total_steps)[group_name]
 
     cfg = AnivaConfig(
@@ -161,7 +251,7 @@ def _run_group(
     )
 
     core = LifeCore(cfg)
-    manip_info = manipulate_time_constant_std(core, tc_std_factor)
+    manip_info = manipulation_fn(core)
     obs = Observer(core)
 
     env = Environment()
@@ -326,21 +416,21 @@ def _make_verdict(group_results: dict[str, dict]) -> dict:
 def _run_condition(
     config: AnivaConfig,
     total_steps: int,
-    tc_std_factor: float,
+    condition_name: str,
+    manipulation_fn,
     snapshot_interval: int,
     groups: list[str],
 ) -> dict:
-    """Run all groups for one time_constant_std condition."""
-    condition_name = TC_STD_CONDITIONS[tc_std_factor]
+    """Run all groups for one experimental condition."""
     print(f"\n{'='*60}")
-    print(f"Condition: {condition_name} (factor={tc_std_factor})")
+    print(f"Condition: {condition_name}")
     print(f"{'='*60}")
 
     group_results: dict[str, dict] = {}
     for gname in groups:
         label = _build_group_defs(total_steps)[gname]["label"]
         print(f"  Running {gname} ({label})...", end=" ", flush=True)
-        result = _run_group(config, gname, total_steps, tc_std_factor, snapshot_interval)
+        result = _run_group(config, gname, total_steps, manipulation_fn, snapshot_interval)
         group_results[gname] = result
         final = result["snapshots"][-1]
         elapsed = result["elapsed_sec"]
@@ -355,7 +445,6 @@ def _run_condition(
 
     return {
         "condition": condition_name,
-        "factor": tc_std_factor,
         "manipulation": manip_info,
         "groups": group_results,
         "verdict": verdict,
@@ -364,6 +453,19 @@ def _run_condition(
 
 # ── Full experiment ──────────────────────────────────────────────
 
+def _default_config() -> AnivaConfig:
+    config = AnivaConfig(seed=42)
+    config.homeostasis_enabled = True
+    config.use_numba_plasticity = True
+    config.homeostatic_target_abs_weight = 0.30
+    config.homeostatic_rate = 1.0
+    return config
+
+
+def _default_groups() -> list[str]:
+    return ["A_L", "A_R", "C", "D_L", "D_R"]
+
+
 def run_experiment_a(
     config: AnivaConfig | None = None,
     total_steps: int = 2000,
@@ -371,29 +473,13 @@ def run_experiment_a(
     groups: list[str] | None = None,
     factors: list[float] | None = None,
 ) -> dict:
-    """Run Phase 7.6A: time_constant_std active manipulation.
-
-    Args:
-        config: Base config. Defaults to AnivaConfig(seed=42) with homeostasis+numba on.
-        total_steps: Steps per group.
-        snapshot_interval: Snapshot interval. Auto-scaled if None.
-        groups: Groups to run. Default: A_L, A_R, C, D_L, D_R.
-        factors: tc_std factors. Default: [0.3, 1.0, 2.0].
-
-    Returns:
-        dict with per-condition results and cross-condition comparison.
-    """
+    """Run Phase 7.6A: time_constant_std active manipulation."""
     if config is None:
-        config = AnivaConfig(seed=42)
-        config.homeostasis_enabled = True
-        config.use_numba_plasticity = True
-
+        config = _default_config()
     if groups is None:
-        groups = ["A_L", "A_R", "C", "D_L", "D_R"]
-
+        groups = _default_groups()
     if factors is None:
         factors = [0.3, 1.0, 2.0]
-
     if snapshot_interval is None:
         snapshot_interval = max(total_steps // 4, 500)
 
@@ -405,14 +491,63 @@ def run_experiment_a(
 
     condition_results: list[dict] = []
     for factor in factors:
-        cr = _run_condition(config, total_steps, factor, snapshot_interval, groups)
+        name = TC_STD_CONDITIONS[factor]
+        fn = lambda core, f=factor: manipulate_time_constant_std(core, f)
+        cr = _run_condition(config, total_steps, name, fn, snapshot_interval, groups)
         condition_results.append(cr)
 
-    # Cross-condition comparison
     comparison = _compare_conditions(condition_results)
 
     return {
         "experiment": "phase7_6A_time_constant_std",
+        "seed": config.seed,
+        "unit_count": config.unit_count,
+        "total_steps": total_steps,
+        "homeostasis_enabled": config.homeostasis_enabled,
+        "use_numba_plasticity": config.use_numba_plasticity,
+        "conditions": condition_results,
+        "comparison": comparison,
+    }
+
+
+def run_experiment_b(
+    config: AnivaConfig | None = None,
+    total_steps: int = 2000,
+    snapshot_interval: int | None = None,
+    groups: list[str] | None = None,
+    factors: list[float] | None = None,
+) -> dict:
+    """Run Phase 7.6B: L→R connectivity active manipulation.
+
+    Scales existing L→R connection weights. Does not add or delete connections.
+    R→L connections are left untouched as a passive control.
+    """
+    if config is None:
+        config = _default_config()
+    if groups is None:
+        groups = _default_groups()
+    if factors is None:
+        factors = [0.5, 1.0, 2.0]
+    if snapshot_interval is None:
+        snapshot_interval = max(total_steps // 4, 500)
+
+    print(f"Phase 7.6B: L→R Connectivity Active Manipulation")
+    print(f"  seed={config.seed}, units={config.unit_count}, steps={total_steps}")
+    print(f"  homeostasis={config.homeostasis_enabled}, numba={config.use_numba_plasticity}")
+    print(f"  conditions: {[LR_CONDITIONS[f] for f in factors]}")
+    print(f"  groups: {groups}")
+
+    condition_results: list[dict] = []
+    for factor in factors:
+        name = LR_CONDITIONS[factor]
+        fn = lambda core, f=factor: manipulate_lr_connectivity(core, f, L_STIM, R_STIM)
+        cr = _run_condition(config, total_steps, name, fn, snapshot_interval, groups)
+        condition_results.append(cr)
+
+    comparison = _compare_conditions(condition_results)
+
+    return {
+        "experiment": "phase7_6B_lr_connectivity",
         "seed": config.seed,
         "unit_count": config.unit_count,
         "total_steps": total_steps,
@@ -428,9 +563,9 @@ def _compare_conditions(condition_results: list[dict]) -> dict:
     deltas = []
     for cr in condition_results:
         v = cr["verdict"]
+        m = cr["manipulation"]
         deltas.append({
             "condition": cr["condition"],
-            "factor": cr["factor"],
             "delta_weight_l1": v.get("delta_weight_l1"),
             "initial_weight_l1": v.get("initial_weight_l1"),
             "final_weight_l1": v.get("final_weight_l1"),
@@ -438,11 +573,9 @@ def _compare_conditions(condition_results: list[dict]) -> dict:
             "causal_skeleton_intact": v.get("causal_skeleton_intact"),
             "repeatability": v.get("repeatability"),
             "plasticity_off_symmetry": v.get("plasticity_off_symmetry"),
-            "tc_std_after": cr["manipulation"]["tc_std_after"],
-            "tc_mean_after": cr["manipulation"]["tc_mean_after"],
+            "manipulation": m,
         })
 
-    # Check monotonicity
     delta_vals = [d["delta_weight_l1"] for d in deltas if d["delta_weight_l1"] is not None]
     if len(delta_vals) >= 2:
         increasing = all(x <= y for x, y in zip(delta_vals, delta_vals[1:]))
@@ -466,14 +599,15 @@ def _compare_conditions(condition_results: list[dict]) -> dict:
 
 def _print_results(result: dict) -> None:
     """Print experiment results summary."""
+    exp_name = result.get("experiment", "Unknown")
     print()
     print("=" * 70)
-    print("Phase 7.6A Results: time_constant_std Manipulation")
+    print(f"Results: {exp_name}")
     print(f"seed={result['seed']}, steps={result['total_steps']}")
     print("=" * 70)
 
     print("\n--- Per-Condition Verdict ---")
-    header = (f"{'condition':>12s}  {'tc_std':>8s}  {'Δ_L1':>10s}  "
+    header = (f"{'condition':>12s}  {'Δ_L1':>10s}  "
               f"{'bifurcation':>16s}  {'skeleton':>8s}  {'repeat':>22s}")
     print(header)
     print("-" * len(header))
@@ -481,7 +615,6 @@ def _print_results(result: dict) -> None:
         v = cr["verdict"]
         print(
             f"{cr['condition']:>12s}  "
-            f"{cr['manipulation']['tc_std_after']:8.4f}  "
             f"{v.get('delta_weight_l1', 0):10.6f}  "
             f"{str(v.get('structural_bifurcation', 'N/A')):>16s}  "
             f"{str(v.get('causal_skeleton_intact', 'N/A')):>8s}  "
@@ -493,7 +626,7 @@ def _print_results(result: dict) -> None:
     print(f"  Δ_L1 trend: {comp['trend']}")
     for d in comp["deltas"]:
         print(f"  {d['condition']:>12s}: Δ_L1={d['delta_weight_l1']:.6f}  "
-              f"tc_std={d['tc_std_after']:.4f}  skeleton={d['causal_skeleton_intact']}")
+              f"skeleton={d['causal_skeleton_intact']}")
 
 
 def _save_csv(result: dict, path: str) -> None:
@@ -502,11 +635,8 @@ def _save_csv(result: dict, path: str) -> None:
     for cr in result["conditions"]:
         for gname, gdata in cr["groups"].items():
             final = gdata["snapshots"][-1]
-            rows.append({
+            row = {
                 "condition": cr["condition"],
-                "factor": cr["factor"],
-                "tc_std_after": cr["manipulation"]["tc_std_after"],
-                "tc_mean_after": cr["manipulation"]["tc_mean_after"],
                 "group": gname,
                 "label": gdata["label"],
                 "plasticity_rate": gdata["plasticity_rate"],
@@ -519,7 +649,15 @@ def _save_csv(result: dict, path: str) -> None:
                 "weight_abs_mean": final["weight_abs_mean"],
                 "activation_entropy": final["activation_entropy"],
                 "elapsed_sec": gdata["elapsed_sec"],
-            })
+            }
+            # Include key manipulation fields for reference
+            m = cr["manipulation"]
+            for mk in ("tc_std_after", "tc_mean_after",
+                        "lr_abs_weight_mean_after", "lr_connection_count",
+                        "lr_abs_weight_mean_before"):
+                if mk in m:
+                    row[f"manip_{mk}"] = m[mk]
+            rows.append(row)
 
     if not rows:
         return
@@ -550,7 +688,7 @@ def _save_summary_json(result: dict, path: str) -> None:
             }
         return {
             "condition": cr["condition"],
-            "factor": cr["factor"],
+            "factor": cr["manipulation"].get("factor"),
             "manipulation": cr["manipulation"],
             "groups": groups_summary,
             "verdict": cr["verdict"],
@@ -576,8 +714,10 @@ def _save_summary_json(result: dict, path: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Phase 7.6A: time_constant_std Active Manipulation"
+        description="Phase 7.6: Active Manipulation Experiments (A: tc_std, B: LR connectivity)"
     )
+    parser.add_argument("--experiment", type=str, default="A", choices=["A", "B"],
+                        help="Experiment: A (time_constant_std) or B (LR connectivity)")
     parser.add_argument("--steps", type=int, default=2000,
                         help="Total steps per group (default: 2000 for smoke test)")
     parser.add_argument("--seed", type=int, default=42)
@@ -586,12 +726,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="Snapshot interval (auto-scaled if not set)")
     parser.add_argument("--groups", type=str, nargs="+",
                         default=["A_L", "A_R", "C", "D_L", "D_R"])
-    parser.add_argument("--factors", type=float, nargs="+",
-                        default=[0.3, 1.0, 2.0])
-    parser.add_argument("--output-csv", type=str,
-                        default="results/phase7_6_time_constant_manipulation.csv")
-    parser.add_argument("--summary-json", type=str,
-                        default="results/phase7_6_time_constant_manipulation_summary.json")
+    parser.add_argument("--factors", type=float, nargs="+", default=None,
+                        help="Manipulation factors (default: A=[0.3,1.0,2.0], B=[0.5,1.0,2.0])")
+    parser.add_argument("--output-csv", type=str, default=None)
+    parser.add_argument("--summary-json", type=str, default=None)
     parser.add_argument("--no-homeostasis", action="store_true",
                         help="Disable homeostasis")
     parser.add_argument("--no-numba", action="store_true",
@@ -601,17 +739,37 @@ def main(argv: list[str] | None = None) -> int:
     config = AnivaConfig(seed=args.seed, unit_count=args.unit_count)
     config.homeostasis_enabled = not args.no_homeostasis
     config.use_numba_plasticity = not args.no_numba
-    # Ensure homeostatic target is set for the homeostasis_on case
     config.homeostatic_target_abs_weight = 0.30
     config.homeostatic_rate = 1.0
 
-    result = run_experiment_a(
-        config=config,
-        total_steps=args.steps,
-        snapshot_interval=args.snapshot_interval,
-        groups=args.groups,
-        factors=args.factors,
-    )
+    if args.experiment == "B":
+        if args.factors is None:
+            args.factors = [0.5, 1.0, 2.0]
+        if args.output_csv is None:
+            args.output_csv = "results/phase7_6_lr_connectivity_manipulation.csv"
+        if args.summary_json is None:
+            args.summary_json = "results/phase7_6_lr_connectivity_manipulation_summary.json"
+        result = run_experiment_b(
+            config=config,
+            total_steps=args.steps,
+            snapshot_interval=args.snapshot_interval,
+            groups=args.groups,
+            factors=args.factors,
+        )
+    else:
+        if args.factors is None:
+            args.factors = [0.3, 1.0, 2.0]
+        if args.output_csv is None:
+            args.output_csv = "results/phase7_6_time_constant_manipulation.csv"
+        if args.summary_json is None:
+            args.summary_json = "results/phase7_6_time_constant_manipulation_summary.json"
+        result = run_experiment_a(
+            config=config,
+            total_steps=args.steps,
+            snapshot_interval=args.snapshot_interval,
+            groups=args.groups,
+            factors=args.factors,
+        )
 
     _print_results(result)
 
@@ -620,7 +778,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.summary_json:
         _save_summary_json(result, args.summary_json)
 
-    # Smoke test gate
     all_intact = all(
         cr["verdict"].get("causal_skeleton_intact") for cr in result["conditions"]
     )

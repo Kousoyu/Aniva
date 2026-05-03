@@ -1,10 +1,11 @@
-"""Phase 7.6: Active Manipulation Experiments.
+"""Phase 7.6–7.8: Active Manipulation Experiments.
 
 7.6A: time_constant_std — test whether tc heterogeneity is a causal driver of Δ_weight_L1.
 7.6B: LR connectivity — test whether L→R coupling strength modulates Δ_weight_L1.
+7.8: combined manipulation — test interaction between tc_std and L→R coupling.
 
 Does NOT modify LifeCore / plasticity / dynamics core mechanisms.
-Does NOT add/delete connections (7.6B only scales existing weights).
+Does NOT add/delete connections (7.6B/7.8 only scale existing weights).
 """
 
 import argparse
@@ -128,6 +129,39 @@ LR_CONDITIONS = {
     1.0: "baseline",
     2.0: "lr_high",
 }
+
+
+# ── Combined manipulation (7.8) ────────────────────────────────────
+
+# Each condition spec: (name, tc_std_factor, lr_factor, description)
+# Only run the 4 needed for the 2×2 interaction test on seed=123.
+COMBINED_CONDITION_SPECS: list[tuple[str, float, float, str]] = [
+    ("baseline",        1.0, 1.0, "no manipulation"),
+    ("high_std",        2.0, 1.0, "tc_std ×2 only"),
+    ("lr_high",         1.0, 2.0, "L→R ×2 only"),
+    ("high_std+lr_high", 2.0, 2.0, "tc_std ×2 + L→R ×2"),
+]
+
+
+def manipulate_combined(
+    core: LifeCore,
+    tc_factor: float,
+    lr_factor: float,
+    tc_clamp: tuple[float, float] = (0.5, 1.5),
+    lr_clamp: tuple[float, float] = (-1.0, 1.0),
+) -> dict:
+    """Apply both time_constant_std and L→R connectivity manipulations.
+
+    Returns merged manipulation info dict with keys prefixed tc_ and lr_.
+    """
+    tc_info = manipulate_time_constant_std(core, tc_factor, tc_clamp)
+    lr_info = manipulate_lr_connectivity(core, lr_factor, L_STIM, R_STIM, lr_clamp)
+
+    # Merge with prefixes to avoid key collision
+    return {
+        **{f"tc_{k}": v for k, v in tc_info.items()},
+        **{f"lr_{k}": v for k, v in lr_info.items()},
+    }
 
 
 def _identify_lr_regions(
@@ -558,6 +592,54 @@ def run_experiment_b(
     }
 
 
+def run_experiment_c(
+    config: AnivaConfig | None = None,
+    total_steps: int = 2000,
+    snapshot_interval: int | None = None,
+    groups: list[str] | None = None,
+    condition_specs: list[tuple[str, float, float, str]] | None = None,
+) -> dict:
+    """Run Phase 7.8: combined tc_std × L→R connectivity manipulation.
+
+    Each condition spec is (name, tc_factor, lr_factor, description).
+    Default 2×2 design: baseline, high_std, lr_high, high_std+lr_high.
+    """
+    if config is None:
+        config = _default_config()
+    if groups is None:
+        groups = _default_groups()
+    if condition_specs is None:
+        condition_specs = COMBINED_CONDITION_SPECS
+    if snapshot_interval is None:
+        snapshot_interval = max(total_steps // 4, 500)
+
+    print(f"Phase 7.8: Combined tc_std × L→R Connectivity Manipulation")
+    print(f"  seed={config.seed}, units={config.unit_count}, steps={total_steps}")
+    print(f"  homeostasis={config.homeostasis_enabled}, numba={config.use_numba_plasticity}")
+    print(f"  conditions: {[s[0] for s in condition_specs]}")
+    print(f"  groups: {groups}")
+
+    condition_results: list[dict] = []
+    for name, tc_f, lr_f, desc in condition_specs:
+        fn = lambda core, tf=tc_f, lf=lr_f: manipulate_combined(core, tf, lf)
+        cr = _run_condition(config, total_steps, name, fn, snapshot_interval, groups)
+        cr["description"] = desc
+        condition_results.append(cr)
+
+    comparison = _compare_conditions(condition_results)
+
+    return {
+        "experiment": "phase7_8_combined_manipulation",
+        "seed": config.seed,
+        "unit_count": config.unit_count,
+        "total_steps": total_steps,
+        "homeostasis_enabled": config.homeostasis_enabled,
+        "use_numba_plasticity": config.use_numba_plasticity,
+        "conditions": condition_results,
+        "comparison": comparison,
+    }
+
+
 def _compare_conditions(condition_results: list[dict]) -> dict:
     """Extract Δ_weight_L1 trend across conditions."""
     deltas = []
@@ -654,7 +736,12 @@ def _save_csv(result: dict, path: str) -> None:
             m = cr["manipulation"]
             for mk in ("tc_std_after", "tc_mean_after",
                         "lr_abs_weight_mean_after", "lr_connection_count",
-                        "lr_abs_weight_mean_before"):
+                        "lr_abs_weight_mean_before",
+                        # Combined experiment (7.8): prefixed keys
+                        "tc_tc_std_after", "tc_tc_mean_after",
+                        "tc_factor",
+                        "lr_lr_abs_weight_mean_after", "lr_lr_connection_count",
+                        "lr_lr_abs_weight_mean_before", "lr_factor"):
                 if mk in m:
                     row[f"manip_{mk}"] = m[mk]
             rows.append(row)
@@ -714,10 +801,10 @@ def _save_summary_json(result: dict, path: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Phase 7.6: Active Manipulation Experiments (A: tc_std, B: LR connectivity)"
+        description="Phase 7.6–7.8: Active Manipulation Experiments (A: tc_std, B: LR, C: combined)"
     )
-    parser.add_argument("--experiment", type=str, default="A", choices=["A", "B"],
-                        help="Experiment: A (time_constant_std) or B (LR connectivity)")
+    parser.add_argument("--experiment", type=str, default="A", choices=["A", "B", "C"],
+                        help="Experiment: A (tc_std), B (LR connectivity), C (combined)")
     parser.add_argument("--steps", type=int, default=2000,
                         help="Total steps per group (default: 2000 for smoke test)")
     parser.add_argument("--seed", type=int, default=42)
@@ -727,7 +814,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--groups", type=str, nargs="+",
                         default=["A_L", "A_R", "C", "D_L", "D_R"])
     parser.add_argument("--factors", type=float, nargs="+", default=None,
-                        help="Manipulation factors (default: A=[0.3,1.0,2.0], B=[0.5,1.0,2.0])")
+                        help="Manipulation factors (default: A=[0.3,1.0,2.0], B=[0.5,1.0,2.0], C=not used)")
     parser.add_argument("--output-csv", type=str, default=None)
     parser.add_argument("--summary-json", type=str, default=None)
     parser.add_argument("--no-homeostasis", action="store_true",
@@ -742,7 +829,18 @@ def main(argv: list[str] | None = None) -> int:
     config.homeostatic_target_abs_weight = 0.30
     config.homeostatic_rate = 1.0
 
-    if args.experiment == "B":
+    if args.experiment == "C":
+        if args.output_csv is None:
+            args.output_csv = "results/phase7_8_combined_manipulation.csv"
+        if args.summary_json is None:
+            args.summary_json = "results/phase7_8_combined_manipulation_summary.json"
+        result = run_experiment_c(
+            config=config,
+            total_steps=args.steps,
+            snapshot_interval=args.snapshot_interval,
+            groups=args.groups,
+        )
+    elif args.experiment == "B":
         if args.factors is None:
             args.factors = [0.5, 1.0, 2.0]
         if args.output_csv is None:

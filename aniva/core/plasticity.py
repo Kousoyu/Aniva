@@ -40,20 +40,25 @@ def apply_plasticity(
     plasticity_rate: float,
     threshold_softness: float,
     dt: float,
+    temporal_enabled: bool = False,
+    temporal_trace_decay: float = 0.05,
+    temporal_plasticity_rate: float = 0.5,
+    temporal_eligibility_clip: float = 1.0,
+    activity_traces: np.ndarray | None = None,
 ) -> None:
-    """对所有权重执行一步 Hebbian plasticity。
+    """对所有权重执行一步 Hebbian plasticity（可选 temporal eligibility）。
 
     规则（每条连接独立，仅使用局部信息）：
     1. 计算 source 和 target 的连续 output_strength
     2. coactivity = source_strength * target_strength
     3. energy_gate = min(source.energy, target.energy)
-    4. 增强：delta = plasticity_rate * coactivity * dt * energy_gate
-       - 兴奋连接 → weight 增加（更正）
-       - 抑制连接 → weight 减小（更负）
-    5. 衰减：weight *= (1 - decay_rate * dt)
-       - decay_rate = plasticity_rate * 0.5
-       - 所有连接持续微弱衰减，只有长期反复共激活的能存活
-    6. 钳位到 [-1, 1]
+    4. Hebbian: delta = plasticity_rate * coactivity * dt * energy_gate
+       - 兴奋连接 → weight 增加，抑制连接 → weight 减小（更负）
+    5. Temporal (Phase 9): eligibility = pre_trace * post_act - pre_act * post_trace
+       - causal (pre before post) → strengthen; anti → weaken
+       - temporal_delta = plasticity_rate * temporal_plasticity_rate * eligibility * dt
+    6. 衰减：weight *= (1 - decay_rate * dt)
+    7. 钳位到 [-1, 1]
 
     Args:
         connections: 所有连接（原地修改 weight）。
@@ -63,6 +68,11 @@ def apply_plasticity(
         plasticity_rate: 变化速率（极慢，默认 0.0001）。
         threshold_softness: 软阈值宽度。
         dt: 时间步长。
+        temporal_enabled: 是否启用 eligibility trace (Phase 9)。
+        temporal_trace_decay: EMA 衰减率（per dt unit）。
+        temporal_plasticity_rate: eligibility 项的相对权重。
+        temporal_eligibility_clip: eligibility 绝对值上限。
+        activity_traces: shape (n_units,) 快速 EMA 痕迹。
     """
     decay_rate = plasticity_rate * 0.5
     for conn in connections:
@@ -82,6 +92,23 @@ def apply_plasticity(
 
         # Hebbian：共激活 → 增强（保持符号方向）
         delta = plasticity_rate * coactivity * dt * energy_gate
+
+        # Phase 9: temporal eligibility trace
+        if temporal_enabled and activity_traces is not None:
+            pre_trace = float(activity_traces[sid])
+            post_trace = float(activity_traces[tid])
+            pre_act = float(activations[sid])
+            post_act = float(activations[tid])
+            # causal: pre was active recently, post is active now
+            # anti: post was active recently, pre is active now
+            eligibility = pre_trace * post_act - pre_act * post_trace
+            if eligibility > temporal_eligibility_clip:
+                eligibility = temporal_eligibility_clip
+            elif eligibility < -temporal_eligibility_clip:
+                eligibility = -temporal_eligibility_clip
+            temporal_delta = plasticity_rate * temporal_plasticity_rate * eligibility * dt
+            delta += temporal_delta
+
         if conn.weight >= 0:
             conn.weight += delta
         else:

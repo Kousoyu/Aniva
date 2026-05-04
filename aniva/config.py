@@ -52,6 +52,11 @@ class AnivaConfig:
     homeostatic_target_abs_weight: float = 0.30
     homeostatic_rate: float = 1.0
     use_numba_plasticity: bool = False
+    # Phase 9: temporal eligibility trace
+    temporal_plasticity_enabled: bool = False
+    temporal_trace_decay: float = 0.05  # EMA decay per dt unit (τ ≈ 20 steps)
+    temporal_plasticity_rate: float = 0.5  # weight of eligibility term vs Hebbian term
+    temporal_eligibility_clip: float = 1.0  # clamp |eligibility| before weight update
 
     def __post_init__(self):
         if self.unit_count < 1:

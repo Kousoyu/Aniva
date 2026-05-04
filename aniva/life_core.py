@@ -108,6 +108,7 @@ class LifeCore:
         self._energies = np.empty(n, dtype=np.float64)
         self._thresholds = np.empty(n, dtype=np.float64)
         self._traces = np.zeros(n, dtype=np.float64)
+        self._activity_traces = np.zeros(n, dtype=np.float64)  # Phase 9: fast EMA trace for eligibility
         self._positions = np.empty((n, 3), dtype=np.float64)
         self._time_constants = np.empty(n, dtype=np.float64)
 
@@ -275,9 +276,14 @@ class LifeCore:
             trcs[uid] += acts[uid] * dt
             trcs[uid] *= 1.0 - cfg.trace_decay_rate * dt
 
+            # Phase 9: 快速活动痕迹（EMA），用于 eligibility trace
+            if cfg.temporal_plasticity_enabled:
+                decay = cfg.temporal_trace_decay * dt
+                self._activity_traces[uid] = (1.0 - decay) * self._activity_traces[uid] + decay * acts[uid]
+
         # 7. 可塑性：连接权重根据共活性变化
-        if cfg.use_numba_plasticity and NUMBA_AVAILABLE:
-            # Numba 路径：原地更新 _weight_cache，再同步回 Connection
+        if cfg.use_numba_plasticity and NUMBA_AVAILABLE and not cfg.temporal_plasticity_enabled:
+            # Numba 路径：不支持 temporal plasticity，仅用于纯 Hebbian
             apply_plasticity_numba(
                 self._source_indices, self._target_indices, self._weight_cache,
                 self._activations, self._thresholds, self._energies,
@@ -289,6 +295,11 @@ class LifeCore:
                 self.connections,
                 self._activations, self._thresholds, self._energies,
                 cfg.plasticity_rate, cfg.threshold_softness, dt,
+                temporal_enabled=cfg.temporal_plasticity_enabled,
+                temporal_trace_decay=cfg.temporal_trace_decay,
+                temporal_plasticity_rate=cfg.temporal_plasticity_rate,
+                temporal_eligibility_clip=cfg.temporal_eligibility_clip,
+                activity_traces=self._activity_traces,
             )
 
         # 8. 稳态维持（读取 Connection.weight，两种路径均已同步）

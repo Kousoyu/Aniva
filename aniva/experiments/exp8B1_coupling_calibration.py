@@ -504,6 +504,8 @@ def main(argv: list[str] | None = None) -> int:
                         default=["A", "B", "C", "D"],
                         help="Config labels: A B C D (or 'all')")
     parser.add_argument("--feedback-gain", type=float, default=2.5)
+    parser.add_argument("--gain-levels", type=float, nargs="+", default=None,
+                        help="Sweep multiple gain values (overrides --feedback-gain)")
     parser.add_argument("--max-bias", type=float, default=0.2)
     parser.add_argument("--base-p-L", type=float, default=0.5)
     parser.add_argument("--feedback-interval", type=int, default=200)
@@ -527,21 +529,24 @@ def main(argv: list[str] | None = None) -> int:
     config_base.homeostatic_target_abs_weight = 0.30
     config_base.homeostatic_rate = 1.0
 
-    print(f"Phase 8B.1: Closed-Loop Coupling Calibration")
-    print(f"  configs={args.configs}, seeds={args.seeds}, steps={args.steps}")
-    print(f"  gain={args.feedback_gain}, max_bias={args.max_bias}")
-    print(f"  homeostasis={config_base.homeostasis_enabled}, numba={config_base.use_numba_plasticity}")
-
+    gain_levels = args.gain_levels if args.gain_levels else [args.feedback_gain]
     all_results: list[dict] = []
     all_config_params: dict[str, dict] = {}
 
-    for cfg_label in args.configs:
+    for gain in gain_levels:
+     for cfg_label in args.configs:
         cfg = CONFIGS[cfg_label]
         event_interval = cfg["event_interval"]
         event_duration = cfg["event_duration"]
 
+        # Build composite label: "A_g2.5" or just "A"
+        if len(gain_levels) > 1:
+            comp_label = f"{cfg_label}_g{gain}"
+        else:
+            comp_label = cfg_label
+
         print(f"\n{'#'*70}")
-        print(f"Config {cfg_label}: interval={event_interval}, duration={event_duration}")
+        print(f"Config {comp_label}: interval={event_interval}, duration={event_duration}, gain={gain}")
         print(f"{'#'*70}")
 
         for seed in args.seeds:
@@ -563,11 +568,11 @@ def main(argv: list[str] | None = None) -> int:
             r_ol = _run_arm(
                 config_base, "open_loop", args.steps,
                 event_duration, args.base_p_L,
-                args.feedback_gain, args.max_bias,
+                gain, args.max_bias,
                 args.feedback_interval, args.snapshot_interval,
                 base_stream, override_rng_ol,
             )
-            r_ol["config_label"] = cfg_label
+            r_ol["config_label"] = comp_label
             print(f"  [open_loop]        L={r_ol['event_count_L']:>4d} R={r_ol['event_count_R']:>4d} "
                   f"L_frac={r_ol['event_L_fraction']:.4f} wL1={r_ol['final_weight_l1']:.8f}")
             all_results.append(r_ol)
@@ -576,11 +581,11 @@ def main(argv: list[str] | None = None) -> int:
             r_cl = _run_arm(
                 config_base, "closed_loop", args.steps,
                 event_duration, args.base_p_L,
-                args.feedback_gain, args.max_bias,
+                gain, args.max_bias,
                 args.feedback_interval, args.snapshot_interval,
                 base_stream, override_rng_cl,
             )
-            r_cl["config_label"] = cfg_label
+            r_cl["config_label"] = comp_label
             delta_L = r_cl["event_L_fraction"] - r_ol["event_L_fraction"]
             delta_w = r_cl["final_weight_l1"] - r_ol["final_weight_l1"]
             print(f"  [closed_loop]      L={r_cl['event_count_L']:>4d} R={r_cl['event_count_R']:>4d} "
@@ -596,7 +601,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.feedback_interval, args.snapshot_interval,
                 r_cl["event_log"], shuffle_rng,
             )
-            r_ms["config_label"] = cfg_label
+            r_ms["config_label"] = comp_label
             delta_L_ms = r_ms["event_L_fraction"] - r_ol["event_L_fraction"]
             delta_w_ms = r_ms["final_weight_l1"] - r_ol["final_weight_l1"]
             print(f"  [matched_shuffle]  L={r_ms['event_count_L']:>4d} R={r_ms['event_count_R']:>4d} "
@@ -622,7 +627,9 @@ def main(argv: list[str] | None = None) -> int:
 
     config_summary: dict[str, dict] = {}
 
-    for cfg_label in args.configs:
+    unique_labels = sorted(set(r.get("config_label", "") for r in all_results))
+
+    for cfg_label in unique_labels:
         cfg_results = [r for r in all_results if r.get("config_label") == cfg_label]
         for seed in args.seeds:
             seed_results = [r for r in cfg_results if r["seed"] == seed]
@@ -664,9 +671,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n--- Config Ranking (mean |Δ| across seeds) ---")
     print(f"{'config':>6s} {'mean|ΔL_frac|':>15s} {'mean|ΔwL1|':>14s} {'mean_cl-ms_sep':>17s} {'total_events':>13s}")
     print("-" * 80)
-    for cfg_label in args.configs:
+    unique_labels = sorted(set(r.get("config_label", "") for r in all_results))
+
+    for cfg_label in unique_labels:
         s = config_summary.get(cfg_label, {})
-        cfg = CONFIGS[cfg_label]
+        base_cfg = cfg_label.split("_")[0] if "_" in cfg_label else cfg_label
+        cfg = CONFIGS[base_cfg]
         n_events_est = args.steps // cfg["event_interval"]
         mean_dL = np.mean(s["dL_cl"]) if s.get("dL_cl") else 0
         mean_dw = np.mean(s["dw_cl"]) if s.get("dw_cl") else 0
@@ -701,7 +711,9 @@ def main(argv: list[str] | None = None) -> int:
           f"{'|cl-ms|_L1':>12s} {'|cl-ms|_L2':>12s}")
     print("-" * 85)
 
-    for cfg_label in args.configs:
+    unique_labels = sorted(set(r.get("config_label", "") for r in all_results))
+
+    for cfg_label in unique_labels:
         cfg_results = [r for r in all_results if r.get("config_label") == cfg_label]
         for seed in args.seeds:
             seed_results = [r for r in cfg_results if r["seed"] == seed]
@@ -736,7 +748,7 @@ def main(argv: list[str] | None = None) -> int:
         _save_summary_json(all_results, args.summary_json, {
             "steps": args.steps, "seeds": args.seeds,
             "configs": args.configs,
-            "feedback_gain": args.feedback_gain,
+            "feedback_gain": gain,
             "max_bias": args.max_bias,
             "base_rng_seed": args.base_rng_seed,
         })

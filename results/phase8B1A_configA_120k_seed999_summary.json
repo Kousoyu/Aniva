@@ -1,0 +1,50 @@
+{
+  "experiment": "phase8B1_coupling_calibration",
+  "params": {
+    "steps": 120000,
+    "seeds": [
+      999
+    ],
+    "configs": [
+      "A"
+    ],
+    "feedback_gain": 2.5,
+    "max_bias": 0.2,
+    "base_rng_seed": 20261503
+  },
+  "arms": [
+    {
+      "seed": 999,
+      "arm": "open_loop",
+      "config": "A",
+      "event_count_L": 299,
+      "event_count_R": 300,
+      "event_L_fraction": 0.4991652754590985,
+      "final_weight_l1": 0.2007115812182596,
+      "mean_lr_imbalance": 0.016679932402839052,
+      "final_mean_activation": 0.268094443125109
+    },
+    {
+      "seed": 999,
+      "arm": "closed_loop",
+      "config": "A",
+      "event_count_L": 297,
+      "event_count_R": 302,
+      "event_L_fraction": 0.4958263772954925,
+      "final_weight_l1": 0.20071147953751156,
+      "mean_lr_imbalance": 0.02660390671325421,
+      "final_mean_activation": 0.25785318873689766
+    },
+    {
+      "seed": 999,
+      "arm": "matched_shuffle",
+      "config": "A",
+      "event_count_L": 297,
+      "event_count_R": 302,
+      "event_L_fraction": 0.4958263772954925,
+      "final_weight_l1": 0.2007118811498899,
+      "mean_lr_imbalance": 0.017548242554698744,
+      "final_mean_activation": 0.26603487390030256
+    }
+  ]
+}

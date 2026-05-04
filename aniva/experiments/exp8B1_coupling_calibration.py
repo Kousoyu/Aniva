@@ -94,6 +94,119 @@ def _pre_generate_base_stream(
     return stream
 
 
+# ── Structural readout ───────────────────────────────────────────────
+
+def _classify_connection(source_pos, target_pos):
+    """Classify a connection by region of source and target.
+    L: x < -0.1, R: x > 0.1, M (midline): otherwise.
+    """
+    src = "L" if source_pos[0] < -0.1 else ("R" if source_pos[0] > 0.1 else "M")
+    tgt = "L" if target_pos[0] < -0.1 else ("R" if target_pos[0] > 0.1 else "M")
+    return f"{src}→{tgt}"
+
+
+def _compute_structural_readout(core, weights_initial) -> dict:
+    """Per-connection weight delta decomposition by region.
+    Returns a dict with all regional and distribution metrics.
+    """
+    connections = list(core.connections)
+    weights_final = np.array([c.weight for c in connections], dtype=np.float64)
+    deltas = weights_final - weights_initial
+
+    # Build region classification
+    regions = []
+    for conn in connections:
+        src_pos = core.units[conn.source_id].position
+        tgt_pos = core.units[conn.target_id].position
+        regions.append(_classify_connection(src_pos, tgt_pos))
+
+    unique_regions = sorted(set(regions))
+
+    # ── Global metrics ────────────────────────────────────────────
+    abs_deltas = np.abs(deltas)
+    global_l1 = float(np.mean(abs_deltas))
+
+    signed_mean = float(np.mean(deltas))
+    pos_mask = deltas > 0
+    neg_mask = deltas < 0
+    pos_mass = float(np.sum(deltas[pos_mask])) if pos_mask.any() else 0.0
+    neg_mass = float(np.sum(np.abs(deltas[neg_mask]))) if neg_mask.any() else 0.0
+
+    # Top-k mass concentration
+    sorted_abs = np.sort(abs_deltas)[::-1]
+    n_conns = len(deltas)
+    top1_pct = float(np.sum(sorted_abs[:max(1, int(n_conns * 0.01))]))
+    top5_pct = float(np.sum(sorted_abs[:max(1, int(n_conns * 0.05))]))
+    top10_pct = float(np.sum(sorted_abs[:max(1, int(n_conns * 0.10))]))
+    total_mass = float(np.sum(sorted_abs))
+
+    # ── Regional decomposition ────────────────────────────────────
+    regional = {}
+    for reg in unique_regions:
+        mask = np.array([r == reg for r in regions])
+        reg_deltas = deltas[mask]
+        regional[reg] = {
+            "count": int(np.sum(mask)),
+            "l1": float(np.mean(np.abs(reg_deltas))) if len(reg_deltas) > 0 else 0.0,
+            "signed_mean": float(np.mean(reg_deltas)) if len(reg_deltas) > 0 else 0.0,
+            "pos_mass": float(np.sum(reg_deltas[reg_deltas > 0])) if np.any(reg_deltas > 0) else 0.0,
+            "neg_mass": float(np.sum(np.abs(reg_deltas[reg_deltas < 0]))) if np.any(reg_deltas < 0) else 0.0,
+        }
+
+    # L/R aggregated by direction
+    l_in_mask = np.array(["→L" in r for r in regions])
+    l_out_mask = np.array(["L→" in r for r in regions])
+    r_in_mask = np.array(["→R" in r for r in regions])
+    r_out_mask = np.array(["R→" in r for r in regions])
+
+    aggregated = {
+        "L_incoming_l1": float(np.mean(abs_deltas[l_in_mask])) if l_in_mask.any() else 0.0,
+        "L_outgoing_l1": float(np.mean(abs_deltas[l_out_mask])) if l_out_mask.any() else 0.0,
+        "R_incoming_l1": float(np.mean(abs_deltas[r_in_mask])) if r_in_mask.any() else 0.0,
+        "R_outgoing_l1": float(np.mean(abs_deltas[r_out_mask])) if r_out_mask.any() else 0.0,
+        "L_incoming_signed": float(np.mean(deltas[l_in_mask])) if l_in_mask.any() else 0.0,
+        "L_outgoing_signed": float(np.mean(deltas[l_out_mask])) if l_out_mask.any() else 0.0,
+        "R_incoming_signed": float(np.mean(deltas[r_in_mask])) if r_in_mask.any() else 0.0,
+        "R_outgoing_signed": float(np.mean(deltas[r_out_mask])) if r_out_mask.any() else 0.0,
+    }
+
+    # Within-region vs cross-region
+    within_mask = np.array([r in ("L→L", "R→R") for r in regions])
+    cross_mask = np.array([r in ("L→R", "R→L") for r in regions])
+    aggregated["within_region_l1"] = float(np.mean(abs_deltas[within_mask])) if within_mask.any() else 0.0
+    aggregated["within_region_signed"] = float(np.mean(deltas[within_mask])) if within_mask.any() else 0.0
+    aggregated["cross_region_l1"] = float(np.mean(abs_deltas[cross_mask])) if cross_mask.any() else 0.0
+    aggregated["cross_region_signed"] = float(np.mean(deltas[cross_mask])) if cross_mask.any() else 0.0
+
+    # ── Distribution statistics ───────────────────────────────────
+    p50 = float(np.percentile(abs_deltas, 50))
+    p95 = float(np.percentile(abs_deltas, 95))
+    p99 = float(np.percentile(abs_deltas, 99))
+
+    return {
+        "global_l1": global_l1,
+        "signed_mean": signed_mean,
+        "pos_mass": pos_mass,
+        "neg_mass": neg_mass,
+        "top1pct_mass": top1_pct,
+        "top5pct_mass": top5_pct,
+        "top10pct_mass": top10_pct,
+        "total_abs_mass": total_mass,
+        "top1pct_frac": float(top1_pct / total_mass) if total_mass > 0 else 0.0,
+        "top5pct_frac": float(top5_pct / total_mass) if total_mass > 0 else 0.0,
+        "regional": regional,
+        "aggregated": aggregated,
+        "dist_p50": p50,
+        "dist_p95": p95,
+        "dist_p99": p99,
+        "dist_max": float(np.max(abs_deltas)),
+        "dist_std": float(np.std(deltas)),
+        # Raw deltas for arm-to-arm comparison
+        "delta_vector": deltas.tolist(),
+        "n_connections": n_conns,
+    }
+
+
 # ── Run one arm (open_loop / closed_loop) ───────────────────────────
 
 def _run_arm(
@@ -206,6 +319,7 @@ def _run_arm(
         "events_overridden": sum(1 for e in event_log if e.get("overridden")),
         "event_L_fraction": n_L / total,
         "final_mean_activation": float(np.mean([u.activation for u in core.units.values()])),
+        "readout": _compute_structural_readout(core, weights_initial),
     }
 
 
@@ -309,6 +423,7 @@ def _run_matched_shuffle_arm(
         "events_overridden": 0,
         "event_L_fraction": n_L / total,
         "final_mean_activation": float(np.mean([u.activation for u in core.units.values()])),
+        "readout": _compute_structural_readout(core, weights_initial),
     }
 
 
@@ -354,6 +469,26 @@ def _save_summary_json(results: list[dict], path: str, params: dict) -> None:
             ])) if r["snapshots"] else None,
             "final_mean_activation": r["final_mean_activation"],
         })
+        # Add structural readout (exclude raw delta_vector for file size)
+        ro = r.get("readout")
+        if ro:
+            summary["arms"][-1]["readout"] = {
+                "global_l1": ro["global_l1"],
+                "signed_mean": ro["signed_mean"],
+                "pos_mass": ro["pos_mass"],
+                "neg_mass": ro["neg_mass"],
+                "top1pct_frac": ro["top1pct_frac"],
+                "top5pct_frac": ro["top5pct_frac"],
+                "top10pct_mass": ro["top10pct_mass"],
+                "total_abs_mass": ro["total_abs_mass"],
+                "regional": ro["regional"],
+                "aggregated": ro["aggregated"],
+                "dist_p95": ro["dist_p95"],
+                "dist_p99": ro["dist_p99"],
+                "dist_max": ro["dist_max"],
+                "dist_std": ro["dist_std"],
+                "n_connections": ro["n_connections"],
+            }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False, default=str)
 
@@ -537,6 +672,62 @@ def main(argv: list[str] | None = None) -> int:
         mean_dw = np.mean(s["dw_cl"]) if s.get("dw_cl") else 0
         mean_sep = np.mean(s["seps"]) if s.get("seps") else 0
         print(f"{cfg_label:>6s} {mean_dL:>15.4f} {mean_dw:>14.4e} {mean_sep:>17.4f} {n_events_est:>13d}")
+
+    # ── Structural Readout Comparison ────────────────────────────
+    print(f"\n--- Structural Readout: Regional Decomposition ---")
+    print(f"{'config':>6s} {'seed':>5s} {'arm':>20s}  "
+          f"{'L1_global':>10s} {'signed':>10s} "
+          f"{'L→L':>10s} {'R→R':>10s} {'L→R':>10s} {'R→L':>10s} "
+          f"{'within':>10s} {'cross':>10s}")
+    print("-" * 120)
+
+    for r in all_results:
+        ro = r.get("readout")
+        if not ro:
+            continue
+        reg = ro["regional"]
+        agg = ro["aggregated"]
+        def _rl1(k):
+            return f"{reg.get(k, {}).get('l1', 0):.6e}" if k in reg else "N/A"
+        print(f"{r.get('config_label', ''):>6s} {r['seed']:>5d} {r['arm']:>20s}  "
+              f"{ro['global_l1']:>10.6e} {ro['signed_mean']:>+10.3e} "
+              f"{_rl1('L→L'):>10s} {_rl1('R→R'):>10s} {_rl1('L→R'):>10s} {_rl1('R→L'):>10s} "
+              f"{agg['within_region_l1']:>10.6e} {agg['cross_region_l1']:>10.6e}")
+
+    # Arm-to-arm delta vector comparison
+    print(f"\n--- Cross-Arm Delta Vector Comparison ---")
+    print(f"{'config':>6s} {'seed':>5s} "
+          f"{'cos(cl, ol)':>14s} {'cos(ms, ol)':>14s} {'cos(cl, ms)':>14s} "
+          f"{'|cl-ms|_L1':>12s} {'|cl-ms|_L2':>12s}")
+    print("-" * 85)
+
+    for cfg_label in args.configs:
+        cfg_results = [r for r in all_results if r.get("config_label") == cfg_label]
+        for seed in args.seeds:
+            seed_results = [r for r in cfg_results if r["seed"] == seed]
+            arms = {r["arm"]: r for r in seed_results}
+            ol = arms.get("open_loop")
+            cl = arms.get("closed_loop")
+            ms = arms.get("matched_shuffle")
+            if not all([ol, cl, ms]):
+                continue
+            dv_ol = np.array(ol["readout"]["delta_vector"])
+            dv_cl = np.array(cl["readout"]["delta_vector"])
+            dv_ms = np.array(ms["readout"]["delta_vector"])
+
+            def _cos(a, b):
+                na, nb = np.linalg.norm(a), np.linalg.norm(b)
+                return float(np.dot(a, b) / (na * nb)) if na > 0 and nb > 0 else 0.0
+
+            cos_cl_ol = _cos(dv_cl, dv_ol)
+            cos_ms_ol = _cos(dv_ms, dv_ol)
+            cos_cl_ms = _cos(dv_cl, dv_ms)
+            l1_cl_ms = float(np.mean(np.abs(dv_cl - dv_ms)))
+            l2_cl_ms = float(np.sqrt(np.mean((dv_cl - dv_ms) ** 2)))
+
+            print(f"{cfg_label:>6s} {seed:>5d}  "
+                  f"{cos_cl_ol:>14.6f} {cos_ms_ol:>14.6f} {cos_cl_ms:>14.6f} "
+                  f"{l1_cl_ms:>12.6e} {l2_cl_ms:>12.6e}")
 
     # ── Save ─────────────────────────────────────────────────────
     if args.output_csv:

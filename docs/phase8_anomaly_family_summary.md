@@ -130,15 +130,15 @@ Phase 8A.2: ██████░░░░░░░░░░░░░░  近乎
 | 条件 | baseline_overlap | delayed_asymmetric | repeated_micro_overlap |
 |------|:--:|:--:|:--:|
 | 同时启动 | ✓ | ✗ | ✓ |
-| 足够持续时间 | ✓ (150/300) | ✓ (300/225) | ✗ (60 each) |
-| 连续冲击（无间歇） | ✓ | ✓ | ✗ (600步 silence) |
+| 持续时间 > micro-pulse | ✓ | ✓ | ✗ (60步太短) |
+| 连续冲击（无长间歇） | ✓ | ✓ | ✗ (600步 silence) |
 | Seed-specific 方向性 | **强** | 弱 | 无（打散） |
 
 - **同时性**是必要条件 — delayed_asymmetric 缺了这个，响应最弱
-- **足够持续时间**也是必要条件 — repeated_micro_overlap 有同时性但每 pulse 太短（60步），间歇期（600步）让 homeostatic recovery 抹去了累积效应
+- **持续时间**需要超过 micro-pulse 尺度 — repeated_micro_overlap 的 60 步太短，间歇期（600步）让 homeostatic recovery 抹去了累积效应。150/300 这个配置目前最有效，但还不能断言它就是最低阈值
 - **连续性**避免系统在脉冲间恢复平衡
 
-→ **baseline_overlap 的结构（同时启动 + 150/300 持续 + 无大间歇）恰好满足所有条件。**
+→ **baseline_overlap 的结构（同时启动 + 足够持续 + 无长间歇）目前是唯一满足所有条件的配置。**
 
 ---
 
@@ -152,8 +152,8 @@ Phase 8A.2: ██████░░░░░░░░░░░░░░  近乎
 
 已确认的必要条件:
   ✓ 跨区域同时启动
-  ✓ 足够脉冲持续时间（≥150 steps for L, ≥300 for R）
-  ✓ 无长间歇（避免 homeostatic recovery 抹去累积）
+  ✓ 脉冲持续时间超过 micro-pulse 尺度（当前证据：60步无效，150/300有效）
+  ✓ 无长间歇（600步 silence 会抹去累积效应）
 
 搜索空间大幅收窄:
   有效 anomaly ≈ 同时启动 + 足够持续 + 跨区域强度不对称

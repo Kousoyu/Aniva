@@ -14,6 +14,10 @@ Anomaly variants:
     R pulse: intensity 0.015, duration 225
     (L starts first, R joins at +75 -> 225-step overlap, both end together)
 
+  repeated_micro_overlap (Phase 8A.3):
+    3 x (L+R simultaneous, duration 60, interval 600)
+    (tests repeated synchronous coherence vs. single sustained shock)
+
 Does NOT: closed-loop world, personality/emotion, stronger L/R replacement.
 """
 
@@ -50,6 +54,17 @@ ANOMALY_VARIANTS = {
     "delayed_asymmetric": [
         {"stimulus_key": "L", "start_offset": 0, "duration_steps": 300},
         {"stimulus_key": "R", "start_offset": 75, "duration_steps": 225},
+    ],
+    "repeated_micro_overlap": [
+        # Pulse 1: simultaneous L+R, 60 steps
+        {"stimulus_key": "L", "start_offset": 0, "duration_steps": 60},
+        {"stimulus_key": "R", "start_offset": 0, "duration_steps": 60},
+        # Pulse 2: simultaneous L+R, 60 steps, start +600
+        {"stimulus_key": "L", "start_offset": 600, "duration_steps": 60},
+        {"stimulus_key": "R", "start_offset": 600, "duration_steps": 60},
+        # Pulse 3: simultaneous L+R, 60 steps, start +1200
+        {"stimulus_key": "L", "start_offset": 1200, "duration_steps": 60},
+        {"stimulus_key": "R", "start_offset": 1200, "duration_steps": 60},
     ],
 }
 
@@ -605,7 +620,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--anomaly-step", type=int, default=30000,
                         help="Step at which anomalous perturbation fires (default: 30000)")
     parser.add_argument("--anomaly-variant", type=str, default="baseline_overlap",
-                        choices=["baseline_overlap", "delayed_asymmetric"],
+                        choices=["baseline_overlap", "delayed_asymmetric", "repeated_micro_overlap"],
                         help="Anomaly variant (default: baseline_overlap)")
     parser.add_argument("--no-homeostasis", action="store_true",
                         help="Disable homeostasis")

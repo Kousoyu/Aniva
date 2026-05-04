@@ -1,0 +1,55 @@
+{
+  "experiment": "phase8A_anomaly_perturbation",
+  "phase": "8A.3",
+  "anomaly_variant": "repeated_micro_overlap",
+  "seeds": [
+    42,
+    77,
+    123,
+    999
+  ],
+  "total_steps": 120000,
+  "unit_count": 300,
+  "anomaly_step": 30000,
+  "homeostasis_enabled": true,
+  "use_numba_plasticity": true,
+  "causal_skeleton_all_intact": true,
+  "cross_seed_analysis": {
+    "mean_anomaly_effect": -6.3186887022917385e-06,
+    "std_anomaly_effect": 1.0005487989870988e-05,
+    "mean_normal_delta_l1": 8.283081021429322e-05,
+    "std_normal_delta_l1": 1.990989540086637e-05,
+    "mean_anomaly_delta_l1": 7.651212151200146e-05,
+    "std_anomaly_delta_l1": 1.36790750702674e-05
+  },
+  "per_seed": {
+    "42": {
+      "normal_delta_l1": 0.00010398096523145468,
+      "anomaly_delta_l1": 9.5824492125057e-05,
+      "anomaly_effect": -8.15647310639768e-06,
+      "cross_seed_zscore": -0.18367763830873765,
+      "causal_skeleton_intact": true
+    },
+    "77": {
+      "normal_delta_l1": 8.007163877973433e-05,
+      "anomaly_delta_l1": 6.897677551785574e-05,
+      "anomaly_effect": -1.1094863261878592e-05,
+      "cross_seed_zscore": -0.4773554837527158,
+      "causal_skeleton_intact": true
+    },
+    "123": {
+      "normal_delta_l1": 5.6825268128639814e-05,
+      "anomaly_delta_l1": 6.504449493819732e-05,
+      "anomaly_effect": 8.219226809557501e-06,
+      "cross_seed_zscore": 1.4529941494674357,
+      "causal_skeleton_intact": true
+    },
+    "999": {
+      "normal_delta_l1": 9.0445368717344e-05,
+      "anomaly_delta_l1": 7.620272346689582e-05,
+      "anomaly_effect": -1.4242645250448182e-05,
+      "cross_seed_zscore": -0.7919610274059822,
+      "causal_skeleton_intact": true
+    }
+  }
+}

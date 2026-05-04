@@ -3,10 +3,16 @@
 Tests whether a structurally distinct anomalous event produces
 seed-specific outlier trajectories, beyond baseline sensitivity.
 
-Anomaly: cross-region, overlapping, asymmetric pulse at step 30000.
-  L pulse: intensity 0.025, duration 150
-  R pulse: intensity 0.015, duration 300
-  (simultaneous onset → 150-step overlap, then R alone for 150 more)
+Anomaly variants:
+  baseline_overlap:
+    L pulse: intensity 0.025, duration 150
+    R pulse: intensity 0.015, duration 300
+    (simultaneous onset -> 150-step overlap, then R alone for 150 more)
+
+  delayed_asymmetric (Phase 8A.2):
+    L pulse: intensity 0.025, duration 300
+    R pulse: intensity 0.015, duration 225
+    (L starts first, R joins at +75 -> 225-step overlap, both end together)
 
 Does NOT: closed-loop world, personality/emotion, stronger L/R replacement.
 """
@@ -34,17 +40,47 @@ ANOMALY_L_STIM = Stimulus(position=(-0.5, 0.0, 0.0), intensity=0.025, radius=0.5
 ANOMALY_R_STIM = Stimulus(position=(0.5, 0.0, 0.0), intensity=0.015, radius=0.5)
 
 DEFAULT_ANOMALY_STEP = 30000
+DEFAULT_ANOMALY_VARIANT = "baseline_overlap"
+
+ANOMALY_VARIANTS = {
+    "baseline_overlap": [
+        {"stimulus_key": "L", "start_offset": 0, "duration_steps": 150},
+        {"stimulus_key": "R", "start_offset": 0, "duration_steps": 300},
+    ],
+    "delayed_asymmetric": [
+        {"stimulus_key": "L", "start_offset": 0, "duration_steps": 300},
+        {"stimulus_key": "R", "start_offset": 75, "duration_steps": 225},
+    ],
+}
+
+ANOMALY_VARIANT_STIM_MAP = {
+    "L": ANOMALY_L_STIM,
+    "R": ANOMALY_R_STIM,
+}
+
+# Legacy constants (used by baseline_overlap)
 ANOMALY_L_DURATION = 150
 ANOMALY_R_DURATION = 300
 
 
-def _get_anomaly_events(anomaly_step: int) -> list[dict]:
-    return [
-        {"stimulus": ANOMALY_L_STIM, "start_step": anomaly_step,
-         "duration_steps": ANOMALY_L_DURATION},
-        {"stimulus": ANOMALY_R_STIM, "start_step": anomaly_step,
-         "duration_steps": ANOMALY_R_DURATION},
-    ]
+def _get_anomaly_events(anomaly_step: int,
+                        variant: str = "baseline_overlap") -> list[dict]:
+    spec = ANOMALY_VARIANTS[variant]
+    events = []
+    for entry in spec:
+        stim = ANOMALY_VARIANT_STIM_MAP[entry["stimulus_key"]]
+        events.append({
+            "stimulus": stim,
+            "start_step": anomaly_step + entry["start_offset"],
+            "duration_steps": entry["duration_steps"],
+        })
+    return events
+
+
+def _get_anomaly_max_duration(variant: str) -> int:
+    """Max end-step offset for post-anomaly window calculation."""
+    spec = ANOMALY_VARIANTS[variant]
+    return max(e["start_offset"] + e["duration_steps"] for e in spec)
 
 
 # ── Group definitions (same 5-group protocol) ──────────────────────
@@ -127,12 +163,14 @@ def _run_group(
     anomaly: bool,
     snapshot_interval: int = 1000,
     anomaly_step: int = 30000,
+    anomaly_variant: str = "baseline_overlap",
 ) -> dict:
     """Run a single experimental group.
 
     Args:
         anomaly: If True, includes the anomalous perturbation events.
         anomaly_step: Step at which anomaly fires (only used if anomaly=True).
+        anomaly_variant: Which anomaly variant to use.
     """
     gdef = GROUP_DEFS[group_name]
 
@@ -157,7 +195,7 @@ def _run_group(
             duration_steps=es["duration_steps"],
         ))
     if anomaly:
-        for es in _get_anomaly_events(anomaly_step):
+        for es in _get_anomaly_events(anomaly_step, anomaly_variant):
             env.add_event(StimulusEvent(
                 stimulus=es["stimulus"],
                 start_step=es["start_step"],
@@ -192,7 +230,8 @@ def _run_group(
 
     # Post-anomaly activation: mean activation from anomaly_end to step 60000
     post_anomaly_acts: list[float] = []
-    post_window_start = anomaly_step + ANOMALY_R_DURATION
+    anomaly_max_dur = _get_anomaly_max_duration(anomaly_variant)
+    post_window_start = anomaly_step + anomaly_max_dur
     post_window_end = min(60000, total_steps)
     for s in snapshots:
         if post_window_start <= s["step"] <= post_window_end:
@@ -317,6 +356,7 @@ def _run_seed(
     snapshot_interval: int,
     groups: list[str],
     anomaly_step: int,
+    anomaly_variant: str = "baseline_overlap",
 ) -> dict:
     """Run normal and anomaly conditions for one seed."""
     seed = config.seed
@@ -334,7 +374,8 @@ def _run_seed(
         for gname in groups:
             gdef = GROUP_DEFS[gname]
             print(f"    Running {gname} ({gdef['label']})...", end=" ", flush=True)
-            result = _run_group(config, gname, total_steps, anomaly, snapshot_interval, anomaly_step)
+            result = _run_group(config, gname, total_steps, anomaly,
+                                snapshot_interval, anomaly_step, anomaly_variant)
             group_results[gname] = result
             final = result["snapshots"][-1]
             elapsed = result["elapsed_sec"]
@@ -454,6 +495,7 @@ def _save_csv(result: dict, path: str) -> None:
             for gname, gdata in cond["groups"].items():
                 final = gdata["snapshots"][-1]
                 row = {
+                    "anomaly_variant": result.get("anomaly_variant", "baseline_overlap"),
                     "seed": sr["seed"],
                     "condition": cond["condition"],
                     "group": gname,
@@ -518,6 +560,14 @@ def _save_summary_json(result: dict, path: str) -> None:
             "conditions": conditions,
         }
 
+    variant = result.get("anomaly_variant", "baseline_overlap")
+    variant_spec = ANOMALY_VARIANTS[variant]
+    anomaly_config = {
+        "variant": variant,
+        "step": result["anomaly_step"],
+        "pulses": variant_spec,
+    }
+
     summary = {
         "experiment": "phase8A_anomaly_perturbation",
         "seeds": result["seeds"],
@@ -525,13 +575,7 @@ def _save_summary_json(result: dict, path: str) -> None:
         "total_steps": result["total_steps"],
         "homeostasis_enabled": result["homeostasis_enabled"],
         "use_numba_plasticity": result["use_numba_plasticity"],
-        "anomaly_config": {
-            "l_intensity": ANOMALY_L_STIM.intensity,
-            "r_intensity": ANOMALY_R_STIM.intensity,
-            "start_step": result["anomaly_step"],
-            "l_duration": ANOMALY_L_DURATION,
-            "r_duration": ANOMALY_R_DURATION,
-        },
+        "anomaly_config": anomaly_config,
         "seed_results": [_serialize_seed(sr) for sr in result["seed_results"]],
         "cross_seed_analysis": result["cross_seed_analysis"],
     }
@@ -560,6 +604,9 @@ def main(argv: list[str] | None = None) -> int:
                         default="results/phase8_anomaly_perturbation_summary.json")
     parser.add_argument("--anomaly-step", type=int, default=30000,
                         help="Step at which anomalous perturbation fires (default: 30000)")
+    parser.add_argument("--anomaly-variant", type=str, default="baseline_overlap",
+                        choices=["baseline_overlap", "delayed_asymmetric"],
+                        help="Anomaly variant (default: baseline_overlap)")
     parser.add_argument("--no-homeostasis", action="store_true",
                         help="Disable homeostasis")
     parser.add_argument("--no-numba", action="store_true",
@@ -567,6 +614,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     anomaly_step = args.anomaly_step
+    anomaly_variant = args.anomaly_variant
     seeds = args.seeds if args.seeds is not None else DEFAULT_SEEDS
     if args.snapshot_interval is None:
         args.snapshot_interval = max(args.steps // 4, 500)
@@ -577,18 +625,24 @@ def main(argv: list[str] | None = None) -> int:
     config.homeostatic_target_abs_weight = 0.30
     config.homeostatic_rate = 1.0
 
+    variant_spec = ANOMALY_VARIANTS[anomaly_variant]
+
     print(f"Phase 8A: External Anomaly Perturbation")
     print(f"  seeds={seeds}, units={args.unit_count}, steps={args.steps}")
     print(f"  homeostasis={config.homeostasis_enabled}, numba={config.use_numba_plasticity}")
-    print(f"  anomaly: L(intensity={ANOMALY_L_STIM.intensity}, "
-          f"duration={ANOMALY_L_DURATION}) + "
-          f"R(intensity={ANOMALY_R_STIM.intensity}, "
-          f"duration={ANOMALY_R_DURATION}) @ step {anomaly_step}")
+    print(f"  variant={anomaly_variant}:")
+    for entry in variant_spec:
+        sk = entry["stimulus_key"]
+        print(f"    {sk}(intensity={ANOMALY_VARIANT_STIM_MAP[sk].intensity}, "
+              f"start=+{entry['start_offset']}, "
+              f"duration={entry['duration_steps']})")
+    print(f"  anomaly_step={anomaly_step}")
 
     seed_results: list[dict] = []
     for seed in seeds:
         config.seed = seed
-        sr = _run_seed(config, args.steps, args.snapshot_interval, args.groups, anomaly_step)
+        sr = _run_seed(config, args.steps, args.snapshot_interval,
+                       args.groups, anomaly_step, anomaly_variant)
         seed_results.append(sr)
 
     analysis = _cross_seed_analysis(seed_results)
@@ -601,6 +655,7 @@ def main(argv: list[str] | None = None) -> int:
         "homeostasis_enabled": config.homeostasis_enabled,
         "use_numba_plasticity": config.use_numba_plasticity,
         "anomaly_step": anomaly_step,
+        "anomaly_variant": anomaly_variant,
         "seed_results": seed_results,
         "cross_seed_analysis": analysis,
     }

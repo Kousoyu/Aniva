@@ -1,0 +1,151 @@
+{
+  "experiment": "phase8B1_coupling_calibration",
+  "params": {
+    "steps": 20000,
+    "seeds": [
+      77,
+      123
+    ],
+    "configs": [
+      "A",
+      "D"
+    ],
+    "feedback_gain": 2.5,
+    "max_bias": 0.2,
+    "base_rng_seed": 20260504
+  },
+  "arms": [
+    {
+      "seed": 77,
+      "arm": "open_loop",
+      "config": "A",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.19752206845975476,
+      "mean_lr_imbalance": -0.028622590250047136,
+      "final_mean_activation": 0.29674237369033507
+    },
+    {
+      "seed": 77,
+      "arm": "closed_loop",
+      "config": "A",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.19752206845975476,
+      "mean_lr_imbalance": -0.028622590250047136,
+      "final_mean_activation": 0.29674237369033507
+    },
+    {
+      "seed": 77,
+      "arm": "matched_shuffle",
+      "config": "A",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.19752176793696208,
+      "mean_lr_imbalance": -0.028763699600236607,
+      "final_mean_activation": 0.3063139536468042
+    },
+    {
+      "seed": 123,
+      "arm": "open_loop",
+      "config": "A",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.1944338789865161,
+      "mean_lr_imbalance": 0.034872137219794416,
+      "final_mean_activation": 0.31900600810069685
+    },
+    {
+      "seed": 123,
+      "arm": "closed_loop",
+      "config": "A",
+      "event_count_L": 36,
+      "event_count_R": 63,
+      "event_L_fraction": 0.36363636363636365,
+      "final_weight_l1": 0.19443365116637082,
+      "mean_lr_imbalance": 0.03477683458261947,
+      "final_mean_activation": 0.3219850056962309
+    },
+    {
+      "seed": 123,
+      "arm": "matched_shuffle",
+      "config": "A",
+      "event_count_L": 36,
+      "event_count_R": 63,
+      "event_L_fraction": 0.36363636363636365,
+      "final_weight_l1": 0.19443563044406256,
+      "mean_lr_imbalance": 0.0389638357448333,
+      "final_mean_activation": 0.30826483876335053
+    },
+    {
+      "seed": 77,
+      "arm": "open_loop",
+      "config": "D",
+      "event_count_L": 186,
+      "event_count_R": 213,
+      "event_L_fraction": 0.46616541353383456,
+      "final_weight_l1": 0.1974893731310365,
+      "mean_lr_imbalance": -0.033446704975317675,
+      "final_mean_activation": 0.33543812932526423
+    },
+    {
+      "seed": 77,
+      "arm": "closed_loop",
+      "config": "D",
+      "event_count_L": 186,
+      "event_count_R": 213,
+      "event_L_fraction": 0.46616541353383456,
+      "final_weight_l1": 0.19748675761964904,
+      "mean_lr_imbalance": -0.03663391044199173,
+      "final_mean_activation": 0.33056024079476043
+    },
+    {
+      "seed": 77,
+      "arm": "matched_shuffle",
+      "config": "D",
+      "event_count_L": 186,
+      "event_count_R": 213,
+      "event_L_fraction": 0.46616541353383456,
+      "final_weight_l1": 0.19748409979804005,
+      "mean_lr_imbalance": -0.028129359399206876,
+      "final_mean_activation": 0.31082197460905203
+    },
+    {
+      "seed": 123,
+      "arm": "open_loop",
+      "config": "D",
+      "event_count_L": 186,
+      "event_count_R": 213,
+      "event_L_fraction": 0.46616541353383456,
+      "final_weight_l1": 0.1943796856348889,
+      "mean_lr_imbalance": 0.02337590426619817,
+      "final_mean_activation": 0.3498728147045044
+    },
+    {
+      "seed": 123,
+      "arm": "closed_loop",
+      "config": "D",
+      "event_count_L": 186,
+      "event_count_R": 213,
+      "event_L_fraction": 0.46616541353383456,
+      "final_weight_l1": 0.1943810813377315,
+      "mean_lr_imbalance": 0.023206689679526892,
+      "final_mean_activation": 0.34863793686972255
+    },
+    {
+      "seed": 123,
+      "arm": "matched_shuffle",
+      "config": "D",
+      "event_count_L": 186,
+      "event_count_R": 213,
+      "event_L_fraction": 0.46616541353383456,
+      "final_weight_l1": 0.19438256198826834,
+      "mean_lr_imbalance": 0.027881407189344936,
+      "final_mean_activation": 0.34522312977189284
+    }
+  ]
+}

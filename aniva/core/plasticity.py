@@ -44,7 +44,10 @@ def apply_plasticity(
     temporal_trace_decay: float = 0.05,
     temporal_plasticity_rate: float = 0.5,
     temporal_eligibility_clip: float = 1.0,
+    temporal_eligibility_mode: str = "activity",
     activity_traces: np.ndarray | None = None,
+    onset_traces: np.ndarray | None = None,
+    current_onsets: np.ndarray | None = None,
 ) -> None:
     """对所有权重执行一步 Hebbian plasticity（可选 temporal eligibility）。
 
@@ -54,7 +57,9 @@ def apply_plasticity(
     3. energy_gate = min(source.energy, target.energy)
     4. Hebbian: delta = plasticity_rate * coactivity * dt * energy_gate
        - 兴奋连接 → weight 增加，抑制连接 → weight 减小（更负）
-    5. Temporal (Phase 9): eligibility = pre_trace * post_act - pre_act * post_trace
+    5. Temporal (Phase 9):
+       - "activity" mode: eligibility = pre_trace * post_act - pre_act * post_trace
+       - "onset" mode: eligibility = pre_onset_trace * post_onset - post_onset_trace * pre_onset
        - causal (pre before post) → strengthen; anti → weaken
        - temporal_delta = plasticity_rate * temporal_plasticity_rate * eligibility * dt
     6. 衰减：weight *= (1 - decay_rate * dt)
@@ -72,7 +77,10 @@ def apply_plasticity(
         temporal_trace_decay: EMA 衰减率（per dt unit）。
         temporal_plasticity_rate: eligibility 项的相对权重。
         temporal_eligibility_clip: eligibility 绝对值上限。
-        activity_traces: shape (n_units,) 快速 EMA 痕迹。
+        temporal_eligibility_mode: "activity" (EMA activation trace) | "onset" (EMA onset trace).
+        activity_traces: shape (n_units,) 快速 EMA 痕迹 (activity mode)。
+        onset_traces: shape (n_units,) EMA onset 痕迹 (onset mode)。
+        current_onsets: shape (n_units,) 当前步 onset 值 (onset mode)。
     """
     decay_rate = plasticity_rate * 0.5
     for conn in connections:
@@ -94,14 +102,25 @@ def apply_plasticity(
         delta = plasticity_rate * coactivity * dt * energy_gate
 
         # Phase 9: temporal eligibility trace
-        if temporal_enabled and activity_traces is not None:
-            pre_trace = float(activity_traces[sid])
-            post_trace = float(activity_traces[tid])
-            pre_act = float(activations[sid])
-            post_act = float(activations[tid])
-            # causal: pre was active recently, post is active now
-            # anti: post was active recently, pre is active now
-            eligibility = pre_trace * post_act - pre_act * post_trace
+        if temporal_enabled:
+            if temporal_eligibility_mode == "onset" and onset_traces is not None and current_onsets is not None:
+                # Phase 9A.4: onset-based — detects "who started firing recently"
+                pre_onset_trace = float(onset_traces[sid])
+                post_onset_trace = float(onset_traces[tid])
+                pre_onset = float(current_onsets[sid])
+                post_onset = float(current_onsets[tid])
+                # causal: source onset trace was active, target onset is active now
+                # anti: target onset trace was active, source onset is active now
+                eligibility = pre_onset_trace * post_onset - post_onset_trace * pre_onset
+            elif activity_traces is not None:
+                # Phase 9A: activity-based — detects "who was active recently"
+                pre_trace = float(activity_traces[sid])
+                post_trace = float(activity_traces[tid])
+                pre_act = float(activations[sid])
+                post_act = float(activations[tid])
+                eligibility = pre_trace * post_act - pre_act * post_trace
+            else:
+                eligibility = 0.0
             if eligibility > temporal_eligibility_clip:
                 eligibility = temporal_eligibility_clip
             elif eligibility < -temporal_eligibility_clip:

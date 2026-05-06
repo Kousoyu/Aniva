@@ -109,6 +109,9 @@ class LifeCore:
         self._thresholds = np.empty(n, dtype=np.float64)
         self._traces = np.zeros(n, dtype=np.float64)
         self._activity_traces = np.zeros(n, dtype=np.float64)  # Phase 9: fast EMA trace for eligibility
+        self._previous_activations = np.zeros(n, dtype=np.float64)  # Phase 9A.4: for onset computation
+        self._onset_traces = np.zeros(n, dtype=np.float64)  # Phase 9A.4: EMA of activation onsets
+        self._current_onsets = np.zeros(n, dtype=np.float64)  # Phase 9A.4: temp buffer for current step onsets
         self._positions = np.empty((n, 3), dtype=np.float64)
         self._time_constants = np.empty(n, dtype=np.float64)
 
@@ -281,6 +284,12 @@ class LifeCore:
                 decay = cfg.temporal_trace_decay * dt
                 self._activity_traces[uid] = (1.0 - decay) * self._activity_traces[uid] + decay * acts[uid]
 
+        # Phase 9A.4: compute current onsets BEFORE plasticity (use old onset_traces)
+        if cfg.temporal_plasticity_enabled and cfg.temporal_eligibility_mode == "onset":
+            for uid in range(n_units):
+                onset = float(acts[uid] - self._previous_activations[uid])
+                self._current_onsets[uid] = onset if onset > 0.0 else 0.0
+
         # 7. 可塑性：连接权重根据共活性变化
         if cfg.use_numba_plasticity and NUMBA_AVAILABLE and not cfg.temporal_plasticity_enabled:
             # Numba 路径：不支持 temporal plasticity，仅用于纯 Hebbian
@@ -299,8 +308,18 @@ class LifeCore:
                 temporal_trace_decay=cfg.temporal_trace_decay,
                 temporal_plasticity_rate=cfg.temporal_plasticity_rate,
                 temporal_eligibility_clip=cfg.temporal_eligibility_clip,
+                temporal_eligibility_mode=cfg.temporal_eligibility_mode,
                 activity_traces=self._activity_traces,
+                onset_traces=self._onset_traces,
+                current_onsets=self._current_onsets,
             )
+
+        # Phase 9A.4: update onset traces AFTER eligibility computation (critical ordering)
+        if cfg.temporal_plasticity_enabled and cfg.temporal_eligibility_mode == "onset":
+            decay = cfg.temporal_trace_decay * dt
+            for uid in range(n_units):
+                self._onset_traces[uid] = (1.0 - decay) * self._onset_traces[uid] + decay * self._current_onsets[uid]
+                self._previous_activations[uid] = float(acts[uid])
 
         # 8. 稳态维持（读取 Connection.weight，两种路径均已同步）
         if cfg.homeostasis_enabled and self.connections:

@@ -110,7 +110,10 @@ temporal_crossing_window: int = 200                # max Δt for causal/anti-cau
 temporal_crossing_strength: float = 0.5            # weight of crossing term vs Hebbian
 temporal_crossing_level_mode: str = "unit_threshold"  # "unit_threshold" | "fixed" | "percentile"
 temporal_crossing_fixed_level: float = 0.3         # used if mode = "fixed"
+temporal_crossing_refractory: int = 50             # min steps between crossings per unit
 ```
+
+**Why refractory is required (not optional):** An 80-step region pulse can cause activation to oscillate around the threshold due to noise + recurrent synaptic feedback, producing 2-5 spurious crossings per pulse. Without refractory, these multiply crossing events generate contradictory Δt signals that cancel out. Refractory=50 steps is shorter than pulse_duration=80 but long enough to ensure only one crossing per pulse per unit. This is a minimum-viable component, not an optional feature.
 
 ### 3.2 State tracking
 
@@ -125,14 +128,25 @@ Per connection, at each step:
 ### 3.3 Crossing detection
 
 ```python
-def _detect_crossings(activations, prev_activations, thresholds, current_step):
+def _detect_crossings(activations, prev_activations, thresholds,
+                      last_crossing_time, current_step, refractory):
     """Return list of unit IDs that crossed threshold this step."""
     crossed = []
     for uid in range(n_units):
-        if prev_activations[uid] < thresholds[uid] and activations[uid] >= thresholds[uid]:
+        # Only upward crossings: below → above threshold
+        upward = (prev_activations[uid] < thresholds[uid]
+                  and activations[uid] >= thresholds[uid])
+        # Enforce refractory: must be ≥ refractory steps since last crossing
+        not_refractory = (current_step - last_crossing_time[uid] >= refractory)
+        if upward and not_refractory:
             crossed.append(uid)
     return crossed
 ```
+
+**Crossing detection rules (Phase 9B.1 minimum version):**
+- **Upward only**: Only `below-threshold → above-threshold` transitions are detected. Downward crossings (`above → below`) are explicitly ignored for 9B.1 — they could be added as a future extension, but the minimum version only asks "when did this unit become effectively active?"
+- **Refractory-gated**: `current_step - last_crossing_time[uid] >= temporal_crossing_refractory` prevents multiple crossings within a single pulse due to activation oscillation around the threshold.
+- **Initial state**: `last_crossing_time` initialized to -1 (or a large negative number), so the first crossing always passes the refractory check.
 
 Alternative crossing level modes:
 - `"unit_threshold"`: use each unit's own threshold (variable, initialized randomly)
@@ -248,11 +262,26 @@ Directly reuse the Phase 9A.3/9A.4 paired-order assay to enable direct compariso
 
 ### 5.2 Key metrics
 
+**Structural metrics (same as 9A.3/9A.4):**
+
 1. **L_then_R vs R_then_L delta vector L1** — primary: does threshold_crossing produce larger separation than activity/onset?
 2. **L→R signed_mean asymmetry** — does L_then_R strengthen L→R; does R_then_L strengthen R→L?
 3. **Simultaneous neutrality** — does simultaneous produce weaker directional signal?
 4. **Separated control attenuation** — does large gap (300) reduce temporal effect?
-5. **Crossing event count** — are there enough crossings to produce a stable signal?
+
+**Crossing diagnostic metrics (new for 9B):**
+
+5. **Crossing count per unit distribution**: min, median, max — is the crossing rate sufficient and not excessive?
+6. **Crossing count by threshold quartile**: do high-threshold units cross at all? If Q4 (top 25% thresholds) crossing count < 10% of Q1 (bottom 25%), then `unit_threshold` as crossing level is biased toward low-threshold units.
+7. **Fraction of steps with ≥1 crossing**: should be well above 0 but well below 1.0. If >50% of steps have crossings, the system reverts to near-continuous behavior.
+8. **Mean inter-crossing interval**: should be larger than refractory (50) and shorter than pair_interval (600).
+9. **Crossing count L-region vs R-region**: are crossings balanced across hemispheres? Imbalance would indicate the crossing level is systematically biased.
+10. **Crossing balance L vs R**: `(L_count - R_count) / (L_count + R_count)` — should be near 0. Large imbalance = intrinsic spatial bias captured by crossing detection.
+
+**These diagnostics distinguish three failure modes:**
+- **Too sparse** (crossing/unit < 10 per 20k): signal as weak as onset-EMA, temporal delta too rare to accumulate.
+- **Too dense** (crossing/unit > 1000 per 20k): every step crosses, threshold is too low, reverts to continuous behavior like activity-EMA.
+- **Threshold-biased** (Q4/Q1 crossing ratio < 0.1): crossing events concentrated in low-threshold units, not representative of hemisphere-level temporal order.
 
 ### 5.3 Expected results
 
@@ -287,6 +316,15 @@ threshold_crossing:  cos < 0.9999, |L1| > activity, asymmetry diff > 1e-04
 - Crossing count < 10 per unit per 20k steps → signal too sparse
 - Crossing count > 1000 per unit per 20k steps → every step crosses, no temporal specificity
 - All arms produce same directional asymmetry → crossing detects intrinsic bias, not event order
+
+**Threshold quartile bias diagnostic:** If units in the top threshold quartile (Q4, threshold > 0.35) have < 10% of the crossing count of units in the bottom quartile (Q1, threshold < 0.25), then `unit_threshold` as crossing level is **biased toward low-threshold units**. The crossing events would be dominated by the easiest-to-activate population rather than providing a representative sample of hemisphere-level temporal order.
+
+If this bias is detected in 9B.1, subsequent fixes in priority order:
+1. **threshold + margin**: set crossing level to `unit.threshold + 0.05`, raising the bar slightly while preserving per-unit variation.
+2. **Fixed global level**: use `temporal_crossing_fixed_level = 0.3` for all units — cleaner comparison but loses per-unit heterogeneity.
+3. **Adaptive percentile**: use a rolling percentile of each unit's own activation history — most flexible but most parameters.
+
+**Phase 9B.1 starts with `unit_threshold`** — the simplest option. The quartile diagnostic tells us whether it's viable or needs escalation. Do not pre-emptively switch to fixed/percentile before the diagnostic justifies it.
 
 ---
 
@@ -333,6 +371,8 @@ Order:
 
 This mirrors the 9A.4 ordering constraint (old trace → eligibility → update trace) with crossing times instead of traces.
 
+**Same-step simultaneous crossing behavior:** If both L-region and R-region units cross threshold in the same step, the ordering above guarantees that neither side's `last_crossing_time` has been updated yet when computing Δt. Each crossing unit references the OTHER region's *previous* crossing time (from the last pulse cycle, typically ~600 steps ago), which is well outside the `temporal_crossing_window=200`. Therefore, **simultaneous same-step crossings produce no artificial causal temporal term between the crossing pair.** This is the correct behavior — simultaneous activation should NOT be interpreted as "L before R" or "R before L." No special-case handling is needed; the update ordering provides this guarantee automatically.
+
 ---
 
 ## 8. Design Tradeoffs
@@ -374,15 +414,15 @@ Applying temporal delta only at crossing events means the temporal term is event
 
 ## 10. Open Questions
 
-1. **Crossing frequency**: How often do units cross threshold under region-pulse stimulation? If too rare (<1 per unit per 20k), the temporal signal will be as sparse as onset-EMA. If too frequent (near-continuous), it reverts to activity-EMA behavior.
+1. **Crossing frequency** *(empirical)*: How often do units cross threshold under region-pulse stimulation? If too rare (<1 per unit per 20k), the temporal signal will be as sparse as onset-EMA. If too frequent (near-continuous), it reverts to activity-EMA behavior. → **Answer: diagnostic output will measure this in 9B.1.**
 
-2. **Crossing level mode**: Is `unit_threshold` the right default, or should we use a fixed global level for cleaner comparison? Unit-level thresholds create heterogeneity that could mask order-specific signal.
+2. **Crossing level mode** *(provisional decision)*: Start with `unit_threshold` for 9B.1. If threshold quartile diagnostic shows bias (Q4/Q1 ratio < 0.1), escalate to fixed level or adaptive percentile as described in Section 6. → **Decided: minimum version first, diagnostic-driven escalation.**
 
-3. **Temporal window size**: 200 steps matches τ of activity trace. Should it be shorter (50-100) for sharper temporal specificity?
+3. **Temporal window size** *(provisional decision)*: 200 steps for 9B.1. If crossing diagnostics show very short or very long inter-crossing intervals, adjust window in 9B.2. → **Decided: 200 for first assay.**
 
-4. **Multiple crossings per pulse**: A single 80-step pulse might produce multiple threshold crossings as activation oscillates around the threshold. Should we enforce a refractory period between crossings?
+4. **Multiple crossings per pulse** *(decided)*: Enforce `temporal_crossing_refractory = 50` in 9B.1. This is a minimum-viable component, not an optional feature. → **Decided: refractory=50, see Section 3.1/3.3.**
 
-These questions can only be answered by running the first assay and inspecting crossing statistics. The design should include diagnostic output: crossing count per unit distribution, mean crossing interval, and fraction of steps with crossings.
+These questions marked *(empirical)* can only be fully answered by running the first assay. The diagnostic output in Section 5.2 is designed to provide the data needed. Questions marked *(decided)* have been resolved in this design revision.
 
 ---
 

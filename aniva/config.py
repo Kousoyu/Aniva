@@ -54,10 +54,16 @@ class AnivaConfig:
     use_numba_plasticity: bool = False
     # Phase 9: temporal eligibility trace
     temporal_plasticity_enabled: bool = False
-    temporal_eligibility_mode: str = "activity"  # "activity" | "onset"
+    temporal_eligibility_mode: str = "activity"  # "activity" | "onset" | "threshold_crossing"
     temporal_trace_decay: float = 0.05  # EMA decay per dt unit (τ ≈ 20 steps)
     temporal_plasticity_rate: float = 0.5  # weight of eligibility term vs Hebbian term
     temporal_eligibility_clip: float = 1.0  # clamp |eligibility| before weight update
+    # Phase 9B: threshold-crossing temporal plasticity
+    temporal_crossing_window: int = 200  # max Δt for causal/anti-causal window
+    temporal_crossing_strength: float = 0.5  # weight of crossing term
+    temporal_crossing_level_mode: str = "unit_threshold"  # "unit_threshold" | "fixed" | "percentile"
+    temporal_crossing_fixed_level: float = 0.3  # used if mode = "fixed"
+    temporal_crossing_refractory: int = 50  # min steps between crossings per unit
 
     def __post_init__(self):
         if self.unit_count < 1:

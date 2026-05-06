@@ -112,6 +112,8 @@ class LifeCore:
         self._previous_activations = np.zeros(n, dtype=np.float64)  # Phase 9A.4: for onset computation
         self._onset_traces = np.zeros(n, dtype=np.float64)  # Phase 9A.4: EMA of activation onsets
         self._current_onsets = np.zeros(n, dtype=np.float64)  # Phase 9A.4: temp buffer for current step onsets
+        self._last_crossing_time = np.full(n, -1, dtype=np.int64)  # Phase 9B: step of last threshold crossing
+        self._is_crossing = np.zeros(n, dtype=bool)  # Phase 9B: temp buffer for current step crossing flags
         self._positions = np.empty((n, 3), dtype=np.float64)
         self._time_constants = np.empty(n, dtype=np.float64)
 
@@ -290,6 +292,20 @@ class LifeCore:
                 onset = float(acts[uid] - self._previous_activations[uid])
                 self._current_onsets[uid] = onset if onset > 0.0 else 0.0
 
+        # Phase 9B: detect threshold crossings BEFORE plasticity
+        if cfg.temporal_plasticity_enabled and cfg.temporal_eligibility_mode == "threshold_crossing":
+            self._is_crossing.fill(False)
+            crossing_levels = thrs if cfg.temporal_crossing_level_mode == "unit_threshold" else None
+            fixed_level = cfg.temporal_crossing_fixed_level
+            refrac = cfg.temporal_crossing_refractory
+            cur_step = self.step_count
+            for uid in range(n_units):
+                level = crossing_levels[uid] if crossing_levels is not None else fixed_level
+                upward = float(self._previous_activations[uid]) < level and float(acts[uid]) >= level
+                not_refractory = (cur_step - int(self._last_crossing_time[uid])) >= refrac
+                if upward and not_refractory:
+                    self._is_crossing[uid] = True
+
         # 7. 可塑性：连接权重根据共活性变化
         if cfg.use_numba_plasticity and NUMBA_AVAILABLE and not cfg.temporal_plasticity_enabled:
             # Numba 路径：不支持 temporal plasticity，仅用于纯 Hebbian
@@ -312,6 +328,11 @@ class LifeCore:
                 activity_traces=self._activity_traces,
                 onset_traces=self._onset_traces,
                 current_onsets=self._current_onsets,
+                temporal_crossing_window=cfg.temporal_crossing_window,
+                temporal_crossing_strength=cfg.temporal_crossing_strength,
+                is_crossing=self._is_crossing,
+                last_crossing_time=self._last_crossing_time,
+                current_step=self.step_count,
             )
 
         # Phase 9A.4: update onset traces AFTER eligibility computation (critical ordering)
@@ -319,6 +340,14 @@ class LifeCore:
             decay = cfg.temporal_trace_decay * dt
             for uid in range(n_units):
                 self._onset_traces[uid] = (1.0 - decay) * self._onset_traces[uid] + decay * self._current_onsets[uid]
+                self._previous_activations[uid] = float(acts[uid])
+
+        # Phase 9B: update crossing times AFTER plasticity (critical ordering)
+        if cfg.temporal_plasticity_enabled and cfg.temporal_eligibility_mode == "threshold_crossing":
+            cur_step = self.step_count
+            for uid in range(n_units):
+                if self._is_crossing[uid]:
+                    self._last_crossing_time[uid] = cur_step
                 self._previous_activations[uid] = float(acts[uid])
 
         # 8. 稳态维持（读取 Connection.weight，两种路径均已同步）

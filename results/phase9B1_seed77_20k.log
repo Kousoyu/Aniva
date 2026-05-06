@@ -1,0 +1,150 @@
+Phase 9B.1: Threshold-Crossing Temporal Plasticity — Paired-Order Assay
+  seeds=[77]  steps=20000  beta=0.5  decay=0.05
+  crossing_window=200  crossing_strength=0.5
+  gap=80  interval=600  pulse_dur=80
+  modes: OFF | activity | onset | threshold_crossing  (1 × 4 × 4 = 16 arm-runs)
+
+======================================================================
+  OFF
+======================================================================
+  s=  77  ev= 68  asym(L→R-R→L): L_then_R=-1.348e-02  R_then_L=-1.348e-02  |diff|=2.020e-06
+
+======================================================================
+  activity
+======================================================================
+  s=  77  ev= 68  asym(L→R-R→L): L_then_R=-1.347e-02  R_then_L=-1.345e-02  |diff|=2.550e-05
+
+======================================================================
+  onset
+======================================================================
+  s=  77  ev= 68  asym(L→R-R→L): L_then_R=-1.349e-02  R_then_L=-1.348e-02  |diff|=4.032e-06
+
+======================================================================
+  threshold_crossing
+======================================================================
+  s=  77  ev= 68  asym(L→R-R→L): L_then_R=-1.348e-02  R_then_L=-1.347e-02  |diff|=3.229e-06  xing/unit=16.9  frac_steps=0.2163  bal_LR=-0.0426  Q4/Q1=1.103
+
+====================================================================================================
+Phase 9B.1 — KEY RESULT: L_then_R vs R_then_L by mode
+====================================================================================================
+
+--- OFF ---
+ seed          cos           |L1|           |L2|   asym(L_then_R)   asym(R_then_L)    |asym_diff|
+------------------------------------------------------------------------------------------
+   77   0.99999996   3.498800e-05   6.215774e-05    -1.348388e-02    -1.348186e-02   2.020088e-06
+
+--- activity ---
+ seed          cos           |L1|           |L2|   asym(L_then_R)   asym(R_then_L)    |asym_diff|
+------------------------------------------------------------------------------------------
+   77   0.99999851   2.245739e-04   3.938381e-04    -1.347312e-02    -1.344762e-02   2.550080e-05
+
+--- onset ---
+ seed          cos           |L1|           |L2|   asym(L_then_R)   asym(R_then_L)    |asym_diff|
+------------------------------------------------------------------------------------------
+   77   0.99999996   3.454023e-05   6.083602e-05    -1.348507e-02    -1.348103e-02   4.031670e-06
+
+--- threshold_crossing ---
+ seed          cos           |L1|           |L2|   asym(L_then_R)   asym(R_then_L)    |asym_diff|
+------------------------------------------------------------------------------------------
+   77   0.99999994   4.550001e-05   7.714571e-05    -1.347504e-02    -1.347181e-02   3.229408e-06
+
+==========================================================================================
+Phase 9B.1 — Directional Asymmetry: L→R sgn - R→L sgn
+==========================================================================================
+
+--- OFF ---
+ seed       L_then_R       R_then_L   simultaneous      separated      L>R - R>L
+---------------------------------------------------------------------------
+   77  -1.348388e-02  -1.348186e-02  -1.348418e-02  -1.348428e-02  -2.020088e-06
+
+--- activity ---
+ seed       L_then_R       R_then_L   simultaneous      separated      L>R - R>L
+---------------------------------------------------------------------------
+   77  -1.347312e-02  -1.344762e-02  -1.345614e-02  -1.347291e-02  -2.550080e-05
+
+--- onset ---
+ seed       L_then_R       R_then_L   simultaneous      separated      L>R - R>L
+---------------------------------------------------------------------------
+   77  -1.348507e-02  -1.348103e-02  -1.348145e-02  -1.348469e-02  -4.031670e-06
+
+--- threshold_crossing ---
+ seed       L_then_R       R_then_L   simultaneous      separated      L>R - R>L
+---------------------------------------------------------------------------
+   77  -1.347504e-02  -1.347181e-02  -1.347462e-02  -1.347965e-02  -3.229408e-06
+
+===============================================================================================
+Phase 9B.1 — Mode Comparison: which best separates L_then_R from R_then_L?
+===============================================================================================
+ seed       OFF |L1|  activity |L1|     onset |L1|    crossing |L1|       OFF asym       act asym       ons asym      xing asym
+-------------------------------------------------------------------------------------------------------------------------------
+   77   3.498800e-05   2.245739e-04   3.454023e-05     4.550001e-05  +2.020088e-06  +2.550080e-05  +4.031670e-06  +3.229408e-06
+
+==========================================================================================
+Phase 9B.1 — Crossing Diagnostics (threshold_crossing mode only)
+==========================================================================================
+
+  s=77  arm=L_then_R
+    crossings/unit: min=0  median=4.0  mean=16.9  max=84
+    frac steps with >=1 crossing: 0.2163
+    mean inter-crossing interval: 1183.4 steps
+    L-region: 2167 crossings (133 units, 16.3/unit)
+    R-region: 2360 crossings (133 units, 17.7/unit)
+    balance (L-R)/(L+R): -0.0426
+    Q4/Q1 threshold crossing ratio: 1.1033
+      Q1: thr=[0.201, 0.249]  n= 75  crossings/unit=16.4
+      Q2: thr=[0.249, 0.301]  n= 75  crossings/unit=15.6
+      Q3: thr=[0.301, 0.349]  n= 75  crossings/unit=17.6
+      Q4: thr=[0.349, 0.400]  n= 75  crossings/unit=18.1
+
+  s=77  arm=R_then_L
+    crossings/unit: min=0  median=5.0  mean=16.8  max=81
+    frac steps with >=1 crossing: 0.2175
+    mean inter-crossing interval: 1193.6 steps
+    L-region: 2182 crossings (133 units, 16.4/unit)
+    R-region: 2334 crossings (133 units, 17.5/unit)
+    balance (L-R)/(L+R): -0.0337
+    Q4/Q1 threshold crossing ratio: 1.0880
+      Q1: thr=[0.201, 0.249]  n= 75  crossings/unit=16.8
+      Q2: thr=[0.249, 0.301]  n= 75  crossings/unit=15.2
+      Q3: thr=[0.301, 0.349]  n= 75  crossings/unit=16.7
+      Q4: thr=[0.349, 0.400]  n= 75  crossings/unit=18.3
+
+  s=77  arm=simultaneous
+    crossings/unit: min=0  median=4.0  mean=17.1  max=73
+    frac steps with >=1 crossing: 0.2225
+    mean inter-crossing interval: 1171.6 steps
+    L-region: 2229 crossings (133 units, 16.8/unit)
+    R-region: 2348 crossings (133 units, 17.7/unit)
+    balance (L-R)/(L+R): -0.0260
+    Q4/Q1 threshold crossing ratio: 1.1016
+      Q1: thr=[0.201, 0.249]  n= 75  crossings/unit=16.4
+      Q2: thr=[0.249, 0.301]  n= 75  crossings/unit=16.1
+      Q3: thr=[0.301, 0.349]  n= 75  crossings/unit=17.7
+      Q4: thr=[0.349, 0.400]  n= 75  crossings/unit=18.1
+
+  s=77  arm=separated_control
+    crossings/unit: min=0  median=3.0  mean=17.0  max=91
+    frac steps with >=1 crossing: 0.2215
+    mean inter-crossing interval: 1173.7 steps
+    L-region: 2161 crossings (133 units, 16.2/unit)
+    R-region: 2413 crossings (133 units, 18.1/unit)
+    balance (L-R)/(L+R): -0.0551
+    Q4/Q1 threshold crossing ratio: 1.0759
+      Q1: thr=[0.201, 0.249]  n= 75  crossings/unit=17.0
+      Q2: thr=[0.249, 0.301]  n= 75  crossings/unit=15.8
+      Q3: thr=[0.301, 0.349]  n= 75  crossings/unit=17.0
+      Q4: thr=[0.349, 0.400]  n= 75  crossings/unit=18.3
+Traceback (most recent call last):
+  File "/usr/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/usr/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/root/aniva/aniva/experiments/exp9B1_threshold_crossing_paired_order.py", line 492, in <module>
+    sys.exit(main())
+  File "/root/aniva/aniva/experiments/exp9B1_threshold_crossing_paired_order.py", line 463, in main
+    w = csv.DictWriter(f, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
+  File "/usr/lib/python3.10/csv.py", line 157, in writerows
+    return self.writer.writerows(map(self._dict_to_list, rowdicts))
+  File "/usr/lib/python3.10/csv.py", line 149, in _dict_to_list
+    raise ValueError("dict contains fields not in fieldnames: "
+ValueError: dict contains fields not in fieldnames: 'crossing_q4_q1_ratio', 'crossing_per_unit_median', 'crossing_per_unit_min', 'mean_inter_crossing_interval', 'crossing_per_unit_max', 'crossing_per_unit_mean', 'frac_steps_with_crossing', 'crossing_balance_lr'

@@ -309,9 +309,12 @@ class LifeCore:
                 if upward and not_refractory:
                     self._is_crossing[uid] = True
 
-        # Phase 9C: event-pair trace decay (continuous, every step)
+        # Phase 9C: event-pair trace decay (continuous, every step).
+        # event_pair_trace_tau is measured in simulation steps, matching event
+        # schedules and Phase 9C.3 diagnostic validation. It intentionally does
+        # NOT use config.dt (physical time) — see phase9C4 full integration smoke.
         if cfg.event_pair_plasticity_enabled:
-            decay_factor = math.exp(-dt / cfg.event_pair_trace_tau)
+            decay_factor = math.exp(-1.0 / cfg.event_pair_trace_tau)
             self._event_trace *= decay_factor
 
         # 7. 可塑性：连接权重根据共活性变化

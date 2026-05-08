@@ -125,6 +125,34 @@ class TestTraceDecay:
             core.step()
         assert np.all(core._event_trace == 0.5)
 
+    def test_trace_decay_independent_of_config_dt(self):
+        """event_pair_trace_tau is in simulation steps, not physical time.
+
+        Setting dt=0.5 should not halve the per-step decay; the decay must
+        use exp(-1.0/tau) regardless of config.dt. See phase9C4 full integration
+        smoke root-cause analysis.
+        """
+        tau = 10.0
+        cfg = AnivaConfig(
+            unit_count=30, seed=42,
+            event_pair_plasticity_enabled=True,
+            event_pair_trace_tau=tau,
+            dt=0.5,
+        )
+        core = LifeCore(cfg)
+        core._event_trace[:] = 1.0
+
+        for _ in range(10):
+            core.step()
+
+        expected = 1.0 / math.e  # exp(-10/10)
+        assert np.allclose(core._event_trace, expected, rtol=0.05)
+
+        # Confirm it is NOT the dt-based result (~0.61)
+        dt_based = math.exp(-10 * 0.5 / tau)
+        assert abs(float(core._event_trace[0]) - dt_based) > 0.1, \
+            "decay should NOT match dt-based computation"
+
 
 class TestSoftGateFormula:
     """Gate formula: gate = min(1, trace_mass / ref) ** power."""

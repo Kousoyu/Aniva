@@ -1,7 +1,7 @@
 # Phase 9C.3 — soft_trace_gate + washout validation notes
 
 > **定位：** formal validation positive under pre-registered setup (commit 28224ec)。
-> 不是 broader digital-life validation。这是对 9C-EPT + soft_trace_gate + washout 事件对塑性机制在 dW leder 层面的 formal 验证。
+> 不是 broader digital-life validation。这是对 9C-EPT + soft_trace_gate + washout 事件对塑性机制在 dW ledger 层面的 formal 验证。
 
 ---
 

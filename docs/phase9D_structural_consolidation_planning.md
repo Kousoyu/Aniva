@@ -74,6 +74,25 @@ consolidation/capture signal 触发时：
 - Capture signal 不能是 reward 或外部标签
 - Capture signal 必须从系统内部状态来（见 3.4）
 
+**fast / slow 权重分离边界（9D.1 review 后明确）：**
+
+```
+_weight_cache       = fast weight   — Hebbian + event-pair fast plasticity 写入
+_slow_weight_cache  = slow overlay  — 只由 consolidation 写入，read-only for others
+_tag_cache          = synaptic tag  — 由 event-pair dW 产生，每步衰减
+
+effective_weight = _weight_cache + _slow_weight_cache  (clamp to [-1, 1])
+```
+
+- `compute_synaptic_input_vectorized` 使用 `effective_weight`（当 consolidation enabled）
+- Hebbian plasticity 继续读写 `_weight_cache`（fast only），不受 slow_weight 影响
+- event-pair fast plasticity（9C）继续写入 `_weight_cache`（fast only）
+- Homeostasis 继续作用于 `_weight_cache`（fast only）
+- `_slow_weight_cache` 不参与现有 homeostasis → **必须有独立 clamp**（见 §5 slow_weight_max）
+- `_sync_connections_from_cache` / `_sync_weight_cache` 只走 `_weight_cache`
+
+**设计原理：** slow_weight 是 read-only overlay。活动被 slow structure 偏置 → Hebbian 从"被 history 塑造的活动"中学习 → 形成 fast↔slow 间的间接耦合，但不产生循环写入依赖。
+
 **优点：**
 - 直接承接 9C dW 输出，不破坏现有路径
 - 生物学类比清晰，易于分阶段验证
@@ -81,7 +100,11 @@ consolidation/capture signal 触发时：
 
 **风险：**
 - Capture signal 设计不当会退化为标签泄露
-- Tag 衰减时间常数需要仔细校准
+- Tag 衰减时间常数需要仔细校准：
+  - τ_tag 太小 → capture 前 tag 已完全衰减 → 无 consolidation
+  - τ_tag 太大 → 前一 episode 的 tag 残留被错误固化到后一 episode → 跨 episode 污染
+  - 初始值 τ_tag=5000 ≈ rest_window → inter-episode 衰减约 exp(-5000/5000) ≈ 37%
+  - 9D.1 必须测试 tag decay 时间线，验证 tag 在 inter-episode 间隔后降至可忽略水平
 
 ### 3.2 Multi-timescale weights（备选 / 可与 STC 结合）
 
@@ -160,27 +183,96 @@ Capture signal 必须来自底层动力学，候选来源：
 
 **目标：** plumbing check，不是科学结论。
 
-- 新增 config 字段（全部 default off）：
-  - `consolidation_enabled: bool = False`
-  - `consolidation_tag_tau: float = 5000.0`（tag 衰减时间常数，steps）
-  - `consolidation_capture_threshold: float = 0.5`（capture 触发阈值）
-  - `consolidation_slow_weight_rate: float = 0.1`（slow weight 更新速率）
-- 新增 `_tag_cache: np.ndarray | None`（O(N_connections)，默认 None）
-- 在 `apply_event_pair_update` 中：dW → tag（不直接改 slow weight）
-- 新增 `_consolidation_step()`：
-  - tag decay（每步）
-  - capture 检测（基于全局能量 / trace 残留）
-  - capture 触发时：tag → slow_weight
-- 新增 `_slow_weight_cache: np.ndarray | None`（O(N_connections)，默认 None）
-- 有效权重 = `_weight_cache + _slow_weight_cache`（钳制到 [-1, 1]）
-- 测试：tag 产生/衰减、capture gate、默认关闭回归、无 NaN
+**新增 config 字段（全部 default off / neutral）：**
+
+| 字段 | 默认值 | 说明 |
+|------|--------|------|
+| `consolidation_enabled: bool` | `False` | 总开关，False 时不创建任何 9D 数据结构 |
+| `consolidation_tag_tau: float` | `5000.0` | tag 衰减时间常数（steps），应 < inter-episode 间隔 |
+| `consolidation_capture_threshold: float` | `0.5` | capture signal 阈值（0–1），超过触发 consolidation |
+| `consolidation_slow_weight_max: float` | `0.1` | per-connection slow_weight 绝对值上限，防止 runaway |
+| `consolidation_slow_weight_rate: float` | `0.1` | capture 时 tag → slow_weight 的转换比率 |
+| `consolidation_capture_refractory_steps: int` | `500` | capture 触发后 refractory 步数，防止同一事件对内重复固化 |
+
+**slow_weight_max 设计理由（review 识别风险）：**
+- Homeostasis 继续只作用于 fast_weight（`_weight_cache`）
+- slow_weight（`_slow_weight_cache`）游离于 homeostasis 之外
+- 若无独立 clamp → slow_weight 可无限累积 → runaway
+- `slow_weight_max = 0.10` 意味着慢结构最多偏置 10% 的总权重范围
+- fast_weight 仍有 ~[-0.9, 0.9] 的动态范围给 Hebbian
+- 可在 9D.2 根据数据调整
+
+**capture refractory 设计理由（review 识别风险）：**
+- 如果没有 refractory，capture signal 持续高位时每步都触发 consolidation
+- 导致同一事件对内 slow_weight 反复累积，失去"沉积"的稀疏性
+- refractory = 500 steps（≈ 一次事件对的持续时间 scale）
+- 触发 capture 后进入 refractory，refractory 期间不检查 capture signal
+
+**新增数据结构：**
+- `_tag_cache: np.ndarray | None`（O(N_connections)，默认 None）
+- `_slow_weight_cache: np.ndarray | None`（O(N_connections)，默认 None）
+- `_capture_refractory_remaining: int`（步计数，默认 0）
+
+**9C → 9D 衔接：**
+- 在 `apply_event_pair_update` 中：dW → tag（不直接改 slow_weight）
+  - tag += |dW|（取绝对值，tag 是无符号的"此处发生过塑性"标记）
+  - 或者 tag += dW（有符号，tag 保留方向信息）—— 9D.1 先用无符号版本
+- 每步 `_consolidation_step()`：
+  1. tag decay：`tag *= exp(-1.0 / τ_tag)`
+  2. refractory countdown：`refractory -= 1`（如 > 0 则跳过 capture）
+  3. capture 检测：`capture_signal > threshold` 且 refractory ≤ 0
+  4. capture 触发：`slow_weight += slow_weight_rate * tag`，clamp slow_weight to `[-slow_max, +slow_max]`，reset refractory
+- 突触计算：`effective = _weight_cache + _slow_weight_cache`，clamp to `[-1, 1]`
+
+**Capture signal 初始公式：**
+```
+capture_signal = min(1.0, mean_energy / energy_ref) * min(1.0, trace_mass / trace_ref)
+```
+其中 `energy_ref` 和 `trace_ref` 为可配参数（9D.1 用硬编码初始值，后续阶段暴露为 config）。
+
+**Capture debug ledger（仅当 ledger_enabled）：**
+每次 capture 触发时记录：
+- `capture_signal_value` — 触发时的 signal 值
+- `mean_energy` — 全局平均能量
+- `trace_mass_at_capture` — 触发时的 trace_mass
+- `tag_mass` — tag 绝对值总和
+- `slow_weight_delta_l1` — 本次 slow_weight 变化的 L1 范数
+- `refractory_remaining` — 触发前的 refractory 剩余步数
+- `n_tagged_connections` — tag > 0 的连接数
+
+**有效权重计算（仅在 consolidation enabled 时）：**
+```python
+if cfg.consolidation_enabled:
+    effective = self._weight_cache + self._slow_weight_cache
+    np.clip(effective, -1.0, 1.0, out=effective)
+    synaptic_weights = effective
+else:
+    synaptic_weights = self._weight_cache  # 无 overhead
+```
 
 **验证内容：**
 - tag 能产生（来自 9C dW）
-- tag 会衰减（τ_tag 正确）
-- repeated 9C dW 能积累 tag（多次事件对后 tag 幅值增长）
+- tag 会衰减（τ_tag 正确，decay 时间线可测）
+- repeated 9C dW 能积累 tag（多次 event-pair update 后 tag 幅值增长）
 - capture gate 能把 tag 写入 slow_weight
-- 默认关闭时所有旧测试通过
+- slow_weight 被 `slow_weight_max` clamp，不会无限增长
+- refractory 防止同一事件对内重复 capture
+- 默认关闭时所有旧测试通过（244/244+）
+
+**9D.1 测试要求（新增）：**
+
+| 测试 | 验证内容 |
+|------|----------|
+| `test_consolidation_disabled_no_effect` | consolidation_enabled=False 时 synaptic input 与旧行为完全一致 |
+| `test_slow_weight_zero_effective_equals_fast` | slow_weight 初始为 0 时 effective == fast |
+| `test_tag_produced_from_event_pair_dw` | apply_event_pair_update 后 tag 非零 |
+| `test_tag_decays_with_correct_tau` | tag 按 exp(-1.0/τ_tag) 衰减 |
+| `test_tag_accumulates_across_updates` | 两次连续 update 后 tag > 单次 |
+| `test_capture_writes_tag_to_slow_weight` | capture signal 超阈值时 slow_weight 改变 |
+| `test_slow_weight_clamped_by_max` | slow_weight 不超过 slow_weight_max |
+| `test_refractory_prevents_repeated_capture` | refractory 期间不触发 capture |
+| `test_capture_uses_no_arm_labels` | capture signal 公式不含 arm/L/R/event_index |
+| `test_no_nan_in_consolidation` | tag / slow_weight / effective 全程无 NaN |
 
 ### 9D.2 — single-seed consolidation smoke
 
@@ -250,11 +342,12 @@ Capture signal 必须来自底层动力学，候选来源：
 | 系统 | 交互方式 | 注意事项 |
 |------|----------|----------|
 | 9C event-pair plasticity | dW → tag 产生 | tag 在 apply_event_pair_update 中创建 |
-| Hebbian plasticity | 继续在 fast weight 上运行 | 不与 tag/slow_weight 直接交互 |
-| Homeostasis | 作用在 effective_weight 上 | 需要决定 homo 是否也作用于 slow_weight |
+| Hebbian plasticity | 继续在 fast weight（`_weight_cache`）上运行 | 不受 slow_weight 直接影响；活动被 slow 偏置后间接影响 Hebbian |
+| Homeostasis | 只作用于 fast_weight（`_weight_cache`） | slow_weight 不参与现有 homeostasis，由 `slow_weight_max` 独立 clamp |
 | Energy | 候选 capture signal 来源 | 能量盈余 → consolidation ON |
-| Trace (9C) | 候选 tag 增强信号 | trace 残留大 → tag 更强 |
-| Observer | 新增 slow_weight / tag 指标 | DI_slow, OS_slow, tag_coverage 等 |
+| Trace (9C) | 候选 capture signal 来源 | trace 残留大 → consolidation window 更可能打开 |
+| Synaptic computation | 使用 `effective = fast + slow`（consolidation enabled 时） | 当 disabled 时直接用 fast，零 overhead |
+| Observer | 新增 slow_weight / tag / capture 指标 | DI_slow, OS_slow, tag_coverage, capture_count |
 
 ---
 

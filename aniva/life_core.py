@@ -3,6 +3,7 @@
 LifeCore 是 Unit 和 Connection 的容器，负责初始化和步进调度。
 """
 
+import math
 import numpy as np
 from typing import Optional
 
@@ -114,6 +115,8 @@ class LifeCore:
         self._current_onsets = np.zeros(n, dtype=np.float64)  # Phase 9A.4: temp buffer for current step onsets
         self._last_crossing_time = np.full(n, -1, dtype=np.int64)  # Phase 9B: step of last threshold crossing
         self._is_crossing = np.zeros(n, dtype=bool)  # Phase 9B: temp buffer for current step crossing flags
+        self._event_trace = np.zeros(n, dtype=np.float64)  # Phase 9C: O(N) event-pair trace
+        self._last_event_step: int | None = None  # Phase 9C: step of last event arrival
         self._positions = np.empty((n, 3), dtype=np.float64)
         self._time_constants = np.empty(n, dtype=np.float64)
 
@@ -306,6 +309,11 @@ class LifeCore:
                 if upward and not_refractory:
                     self._is_crossing[uid] = True
 
+        # Phase 9C: event-pair trace decay (continuous, every step)
+        if cfg.event_pair_plasticity_enabled:
+            decay_factor = math.exp(-dt / cfg.event_pair_trace_tau)
+            self._event_trace *= decay_factor
+
         # 7. 可塑性：连接权重根据共活性变化
         if cfg.use_numba_plasticity and NUMBA_AVAILABLE and not cfg.temporal_plasticity_enabled:
             # Numba 路径：不支持 temporal plasticity，仅用于纯 Hebbian
@@ -362,6 +370,46 @@ class LifeCore:
 
         self._sync_weight_cache()
         self.step_count += 1
+
+    def apply_event_pair_phi(self, phi: np.ndarray) -> dict | None:
+        """Apply event-pair plasticity update when a world event arrives.
+
+        Called externally (experiment script) when an Environment event fires.
+        Computes gate from current trace mass, applies the update to all
+        connections, then adds phi to the trace.
+
+        Args:
+            phi: O(N) spatial activation vector for the arriving event.
+
+        Returns:
+            Ledger dict if event_pair_ledger_enabled, else None.
+        """
+        cfg = self.config
+        trace = self._event_trace
+        trace_mass = float(np.sum(np.abs(trace)))
+        phi_mass = float(np.sum(np.abs(phi)))
+
+        ledger = None
+        if trace_mass > 1e-30 and phi_mass > 1e-30:
+            from aniva.core.plasticity_event_pair import apply_event_pair_update
+            ledger = apply_event_pair_update(
+                trace=trace,
+                phi=phi,
+                weight_cache=self._weight_cache,
+                source_indices=self._source_indices,
+                target_indices=self._target_indices,
+                target_l1=cfg.event_pair_target_update_l1,
+                gate_mode=cfg.event_pair_gate_mode,
+                gate_ref=cfg.event_pair_trace_gate_ref,
+                gate_power=cfg.event_pair_gate_power,
+                gate_threshold=cfg.event_pair_gate_threshold,
+                ledger_enabled=cfg.event_pair_ledger_enabled,
+            )
+            self._sync_connections_from_cache()
+
+        trace += phi
+        self._last_event_step = self.step_count
+        return ledger
 
     @property
     def unit_count(self) -> int:

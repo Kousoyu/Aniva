@@ -64,6 +64,15 @@ class AnivaConfig:
     temporal_crossing_level_mode: str = "unit_threshold"  # "unit_threshold" | "fixed" | "percentile"
     temporal_crossing_fixed_level: float = 0.3  # used if mode = "fixed"
     temporal_crossing_refractory: int = 50  # min steps between crossings per unit
+    # Phase 9C: event-pair trace plasticity (all default off)
+    event_pair_plasticity_enabled: bool = False
+    event_pair_trace_tau: float = 1000.0  # τ_trace, O(N) trace decay time constant
+    event_pair_target_update_l1: float = 1e-4  # target L1 norm of event-pair dW
+    event_pair_gate_mode: str = "soft_trace_gate"  # "soft_trace_gate" | "bare_l1_norm" | "hard_threshold"
+    event_pair_trace_gate_ref: float = 3e-2  # trace_gate_ref
+    event_pair_gate_power: float = 1.0  # gate_power
+    event_pair_gate_threshold: float = 1e-3  # hard_threshold cutoff
+    event_pair_ledger_enabled: bool = False  # dW ledger diagnostics
 
     def __post_init__(self):
         if self.unit_count < 1:

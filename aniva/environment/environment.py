@@ -2,9 +2,11 @@
 
 Phase 4.0: 点刺激 (PointStimulus)，按空间距离影响单元。
 Phase 5.1: 分离 Stimulus（物理性质）与 StimulusEvent（时序调度）。
+Phase 9C: phi vector generation for event-pair plasticity.
 """
 
 import math
+import numpy as np
 from dataclasses import dataclass
 from typing import Tuple
 from aniva.core.unit import Unit
@@ -104,3 +106,30 @@ class Environment:
                 if inf != 0.0:
                     influences[uid] = influences.get(uid, 0.0) + inf
         return influences
+
+    def phi_vector(
+        self, event: StimulusEvent, positions: np.ndarray
+    ) -> np.ndarray:
+        """Generate O(N) spatial activation vector for a single stimulus event.
+
+        Phase 9C: each world event carries a spatial pattern (phi) that gates
+        event-pair plasticity. This method computes the influence of `event`
+        on every unit and returns it as a flat numpy array.
+
+        Args:
+            event: the stimulus event to compute phi for.
+            positions: shape (n_units, 3) array of unit positions.
+
+        Returns:
+            shape (n_units,) float64 array of influence values.
+        """
+        n = positions.shape[0]
+        phi = np.zeros(n, dtype=np.float64)
+        stim = event.stimulus
+        for uid in range(n):
+            dist = math.sqrt(
+                sum((stim.position[d] - positions[uid, d]) ** 2 for d in range(3))
+            )
+            if dist < stim.radius:
+                phi[uid] = stim.intensity * (1.0 - dist / stim.radius)
+        return phi

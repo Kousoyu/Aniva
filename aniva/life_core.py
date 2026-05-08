@@ -117,6 +117,11 @@ class LifeCore:
         self._is_crossing = np.zeros(n, dtype=bool)  # Phase 9B: temp buffer for current step crossing flags
         self._event_trace = np.zeros(n, dtype=np.float64)  # Phase 9C: O(N) event-pair trace
         self._last_event_step: int | None = None  # Phase 9C: step of last event arrival
+        # Phase 9D: consolidation (allocated after _build_cache_arrays)
+        self._tag_cache: np.ndarray | None = None
+        self._slow_weight_cache: np.ndarray | None = None
+        self._capture_refractory_remaining: int = 0
+        self._consolidation_ledger: list = []
         self._positions = np.empty((n, 3), dtype=np.float64)
         self._time_constants = np.empty(n, dtype=np.float64)
 
@@ -131,6 +136,8 @@ class LifeCore:
         self._init_units()
         self._init_connections()
         self._build_cache_arrays()
+        if self.config.consolidation_enabled:
+            self._init_consolidation()
 
     def _init_units(self) -> None:
         """初始化所有活性单元状态到数组。"""
@@ -189,6 +196,48 @@ class LifeCore:
             self._target_indices[i] = conn.target_id
             self._weight_cache[i] = conn.weight
 
+    def _init_consolidation(self) -> None:
+        """Phase 9D: allocate consolidation data structures."""
+        n_conn = len(self.connections)
+        self._tag_cache = np.zeros(n_conn, dtype=np.float64)
+        self._slow_weight_cache = np.zeros(n_conn, dtype=np.float64)
+        self._capture_refractory_remaining = 0
+        self._consolidation_ledger = []
+
+    def _consolidation_step(self) -> None:
+        """Phase 9D: decay tags, check capture signal, transfer tag → slow_weight."""
+        from aniva.core.plasticity_consolidation import (
+            decay_tags, compute_capture_signal, apply_capture,
+        )
+        cfg = self.config
+        decay_tags(self._tag_cache, cfg.consolidation_tag_tau)
+        if self._capture_refractory_remaining > 0:
+            self._capture_refractory_remaining -= 1
+            return
+        mean_energy = float(np.mean(self._energies))
+        trace_mass = float(np.sum(np.abs(self._event_trace)))
+        signal = compute_capture_signal(mean_energy, trace_mass)
+        if signal >= cfg.consolidation_capture_threshold:
+            delta_l1 = apply_capture(
+                self._tag_cache,
+                self._slow_weight_cache,
+                cfg.consolidation_slow_weight_rate,
+                cfg.consolidation_slow_weight_max,
+            )
+            self._capture_refractory_remaining = cfg.consolidation_capture_refractory_steps
+            if cfg.consolidation_ledger_enabled:
+                tag_mass = float(np.sum(np.abs(self._tag_cache)))
+                n_tagged = int(np.sum(self._tag_cache > 0))
+                self._consolidation_ledger.append({
+                    "capture_signal": signal,
+                    "mean_energy": mean_energy,
+                    "trace_mass_at_capture": trace_mass,
+                    "tag_mass": tag_mass,
+                    "slow_weight_delta_l1": delta_l1,
+                    "refractory_remaining": self._capture_refractory_remaining,
+                    "n_tagged_connections": n_tagged,
+                })
+
     def _sync_weight_cache(self) -> None:
         """同步权重缓存：在 plasticity/homeostasis 修改 Connection.weight 后调用。"""
         for i, conn in enumerate(self.connections):
@@ -239,9 +288,16 @@ class LifeCore:
         # 1. 突触传递：向量化计算所有输入，再统一应用（避免顺序依赖）
         if len(self.connections) != len(self._weight_cache):
             self._build_cache_arrays()
+        # Phase 9D: use effective weights (fast + slow) when consolidation enabled
+        if cfg.consolidation_enabled:
+            from aniva.core.plasticity_consolidation import compute_effective_weights
+            synaptic_weights = compute_effective_weights(
+                self._weight_cache, self._slow_weight_cache)
+        else:
+            synaptic_weights = self._weight_cache
         synaptic_inputs = compute_synaptic_input_vectorized(
             acts, thrs,
-            self._source_indices, self._target_indices, self._weight_cache,
+            self._source_indices, self._target_indices, synaptic_weights,
             cfg.threshold_softness, n_units,
         )
         for uid, inp in synaptic_inputs.items():
@@ -316,6 +372,10 @@ class LifeCore:
         if cfg.event_pair_plasticity_enabled:
             decay_factor = math.exp(-1.0 / cfg.event_pair_trace_tau)
             self._event_trace *= decay_factor
+
+        # Phase 9D: structural consolidation step (tag decay + capture)
+        if cfg.consolidation_enabled:
+            self._consolidation_step()
 
         # 7. 可塑性：连接权重根据共活性变化
         if cfg.use_numba_plasticity and NUMBA_AVAILABLE and not cfg.temporal_plasticity_enabled:
@@ -395,6 +455,9 @@ class LifeCore:
         ledger = None
         if trace_mass > 1e-30 and phi_mass > 1e-30:
             from aniva.core.plasticity_event_pair import apply_event_pair_update
+            # Phase 9D: capture pre-update weights for tag production
+            if cfg.consolidation_enabled:
+                w_before = self._weight_cache.copy()
             ledger = apply_event_pair_update(
                 trace=trace,
                 phi=phi,
@@ -409,6 +472,11 @@ class LifeCore:
                 ledger_enabled=cfg.event_pair_ledger_enabled,
             )
             self._sync_connections_from_cache()
+            # Phase 9D: produce tags from event-pair dW
+            if cfg.consolidation_enabled:
+                from aniva.core.plasticity_consolidation import produce_tags
+                dW = self._weight_cache - w_before
+                produce_tags(self._tag_cache, dW)
 
         trace += phi
         self._last_event_step = self.step_count

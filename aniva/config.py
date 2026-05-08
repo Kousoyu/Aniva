@@ -73,6 +73,14 @@ class AnivaConfig:
     event_pair_gate_power: float = 1.0  # gate_power
     event_pair_gate_threshold: float = 1e-3  # hard_threshold cutoff
     event_pair_ledger_enabled: bool = False  # dW ledger diagnostics
+    # Phase 9D: structural consolidation (all default off)
+    consolidation_enabled: bool = False
+    consolidation_tag_tau: float = 5000.0  # tag decay time constant (steps)
+    consolidation_capture_threshold: float = 0.5  # capture signal must exceed this
+    consolidation_slow_weight_max: float = 0.1  # per-connection slow_weight clamp
+    consolidation_slow_weight_rate: float = 0.1  # tag → slow_weight transfer ratio
+    consolidation_capture_refractory_steps: int = 500  # steps between captures
+    consolidation_ledger_enabled: bool = False  # capture event log
 
     def __post_init__(self):
         if self.unit_count < 1:

@@ -1,0 +1,41 @@
+{
+  "experiment": "phase9C1C_trace_gated_update",
+  "params": {
+    "seed": 999,
+    "gap": 500,
+    "tau_trace": 1000,
+    "num_pairs": 5,
+    "target": 0.0001,
+    "trace_gate_ref": 0.03,
+    "gate_power": 1.0,
+    "threshold": 0.001
+  },
+  "arms": [
+    {
+      "rest_window": 5000,
+      "gate_mode": "soft_trace_gate",
+      "arm": "simultaneous",
+      "final_DI": 0.022045154602127703,
+      "acc_dW_DI": -0.36451044863999144,
+      "contamination_ratio": 0.49999990199769784,
+      "mean_trace_mass": 0.0006411467773533312,
+      "mean_gate_within": 0.0213514595701744,
+      "mean_gate_cross": 0.021391658920047678,
+      "within_total": 2.550959982293305e-06,
+      "cross_total": 2.550959982293305e-06
+    },
+    {
+      "rest_window": 5000,
+      "gate_mode": "soft_trace_gate",
+      "arm": "separated_control",
+      "final_DI": 0.022027694592684492,
+      "acc_dW_DI": 0.17994178577997413,
+      "contamination_ratio": 0.41002910398250475,
+      "mean_trace_mass": 0.005555788845251521,
+      "mean_gate_within": 0.19710101150372222,
+      "mean_gate_cross": 0.17030789901421134,
+      "within_total": 9.431963935970574e-05,
+      "cross_total": 6.55520431358624e-05
+    }
+  ]
+}

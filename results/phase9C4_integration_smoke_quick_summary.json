@@ -1,0 +1,43 @@
+{
+  "experiment": "phase9C4_integration_smoke",
+  "quick_mode": true,
+  "params": {
+    "seed": 42,
+    "unit_count": 50,
+    "gap": 500,
+    "tau_trace": 1000,
+    "num_pairs": 2,
+    "target": 0.0001,
+    "trace_gate_ref": 0.03,
+    "gate_power": 1.0,
+    "rest_window": 500
+  },
+  "acc_dW_OS": 1.4953768334713402e-08,
+  "final_OS": -2.7942042579942594e-05,
+  "has_nan": false,
+  "all_schedule_ok": true,
+  "arms": [
+    {
+      "arm": "L_then_R",
+      "acc_dW_DI": -0.9999999752801165,
+      "final_DI": -0.15683831857758793,
+      "contamination_ratio": 0.9999999752801165,
+      "mean_gate_within": 0.20226632120782237,
+      "mean_gate_cross": 0.2077924182464018,
+      "within_total": 0.0,
+      "cross_total": 4.045326424151341e-05,
+      "schedule_ok": true
+    },
+    {
+      "arm": "R_then_L",
+      "acc_dW_DI": -0.9999999902338849,
+      "final_DI": -0.15681037653500798,
+      "contamination_ratio": 0.0,
+      "mean_gate_within": 0.16702671456089124,
+      "mean_gate_cross": 0.5119742960258165,
+      "within_total": 0.00010239485920515712,
+      "cross_total": 0.0,
+      "schedule_ok": true
+    }
+  ]
+}

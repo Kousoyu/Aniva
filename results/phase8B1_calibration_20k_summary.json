@@ -1,0 +1,285 @@
+{
+  "experiment": "phase8B1_coupling_calibration",
+  "params": {
+    "steps": 20000,
+    "seeds": [
+      42,
+      999
+    ],
+    "configs": [
+      "A",
+      "B",
+      "C",
+      "D"
+    ],
+    "feedback_gain": 2.5,
+    "max_bias": 0.2,
+    "base_rng_seed": 20260504
+  },
+  "arms": [
+    {
+      "seed": 42,
+      "arm": "open_loop",
+      "config": "A",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.19520847186702747,
+      "mean_lr_imbalance": 0.0449570061881192,
+      "final_mean_activation": 0.3032290502009133
+    },
+    {
+      "seed": 42,
+      "arm": "closed_loop",
+      "config": "A",
+      "event_count_L": 41,
+      "event_count_R": 58,
+      "event_L_fraction": 0.41414141414141414,
+      "final_weight_l1": 0.19520165483618387,
+      "mean_lr_imbalance": 0.04152324774881814,
+      "final_mean_activation": 0.30677620125874533
+    },
+    {
+      "seed": 42,
+      "arm": "matched_shuffle",
+      "config": "A",
+      "event_count_L": 41,
+      "event_count_R": 58,
+      "event_L_fraction": 0.41414141414141414,
+      "final_weight_l1": 0.19520771839694223,
+      "mean_lr_imbalance": 0.03907445062356098,
+      "final_mean_activation": 0.31650688689000744
+    },
+    {
+      "seed": 999,
+      "arm": "open_loop",
+      "config": "A",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.1967326705956616,
+      "mean_lr_imbalance": 0.01676741462154329,
+      "final_mean_activation": 0.2909025404186591
+    },
+    {
+      "seed": 999,
+      "arm": "closed_loop",
+      "config": "A",
+      "event_count_L": 37,
+      "event_count_R": 62,
+      "event_L_fraction": 0.37373737373737376,
+      "final_weight_l1": 0.19672899688668846,
+      "mean_lr_imbalance": 0.015011037956337219,
+      "final_mean_activation": 0.25450183711757624
+    },
+    {
+      "seed": 999,
+      "arm": "matched_shuffle",
+      "config": "A",
+      "event_count_L": 37,
+      "event_count_R": 62,
+      "event_L_fraction": 0.37373737373737376,
+      "final_weight_l1": 0.1967342334621135,
+      "mean_lr_imbalance": 0.009746247546957954,
+      "final_mean_activation": 0.26976343716003953
+    },
+    {
+      "seed": 42,
+      "arm": "open_loop",
+      "config": "B",
+      "event_count_L": 79,
+      "event_count_R": 120,
+      "event_L_fraction": 0.3969849246231156,
+      "final_weight_l1": 0.19519712065640055,
+      "mean_lr_imbalance": 0.044425354216620395,
+      "final_mean_activation": 0.2845117416758513
+    },
+    {
+      "seed": 42,
+      "arm": "closed_loop",
+      "config": "B",
+      "event_count_L": 80,
+      "event_count_R": 119,
+      "event_L_fraction": 0.4020100502512563,
+      "final_weight_l1": 0.19520145101554504,
+      "mean_lr_imbalance": 0.04036837807527895,
+      "final_mean_activation": 0.29869540349408646
+    },
+    {
+      "seed": 42,
+      "arm": "matched_shuffle",
+      "config": "B",
+      "event_count_L": 80,
+      "event_count_R": 119,
+      "event_L_fraction": 0.4020100502512563,
+      "final_weight_l1": 0.19520327495654502,
+      "mean_lr_imbalance": 0.031515581910553155,
+      "final_mean_activation": 0.31038848497737914
+    },
+    {
+      "seed": 999,
+      "arm": "open_loop",
+      "config": "B",
+      "event_count_L": 79,
+      "event_count_R": 120,
+      "event_L_fraction": 0.3969849246231156,
+      "final_weight_l1": 0.19673173011935985,
+      "mean_lr_imbalance": 0.005314884156250715,
+      "final_mean_activation": 0.2765509682743265
+    },
+    {
+      "seed": 999,
+      "arm": "closed_loop",
+      "config": "B",
+      "event_count_L": 79,
+      "event_count_R": 120,
+      "event_L_fraction": 0.3969849246231156,
+      "final_weight_l1": 0.19672843350931493,
+      "mean_lr_imbalance": 0.005357944868879233,
+      "final_mean_activation": 0.28620422368958337
+    },
+    {
+      "seed": 999,
+      "arm": "matched_shuffle",
+      "config": "B",
+      "event_count_L": 79,
+      "event_count_R": 120,
+      "event_L_fraction": 0.3969849246231156,
+      "final_weight_l1": 0.19672739549957144,
+      "mean_lr_imbalance": 0.011795900335206482,
+      "final_mean_activation": 0.27748473458756445
+    },
+    {
+      "seed": 42,
+      "arm": "open_loop",
+      "config": "C",
+      "event_count_L": 79,
+      "event_count_R": 120,
+      "event_L_fraction": 0.3969849246231156,
+      "final_weight_l1": 0.19519542175942572,
+      "mean_lr_imbalance": 0.03740521576488957,
+      "final_mean_activation": 0.29356293732158184
+    },
+    {
+      "seed": 42,
+      "arm": "closed_loop",
+      "config": "C",
+      "event_count_L": 81,
+      "event_count_R": 118,
+      "event_L_fraction": 0.40703517587939697,
+      "final_weight_l1": 0.19519770344572063,
+      "mean_lr_imbalance": 0.03243755262261916,
+      "final_mean_activation": 0.29000441473134503
+    },
+    {
+      "seed": 42,
+      "arm": "matched_shuffle",
+      "config": "C",
+      "event_count_L": 81,
+      "event_count_R": 118,
+      "event_L_fraction": 0.40703517587939697,
+      "final_weight_l1": 0.19520086441834242,
+      "mean_lr_imbalance": 0.03746598599868118,
+      "final_mean_activation": 0.31928573191925413
+    },
+    {
+      "seed": 999,
+      "arm": "open_loop",
+      "config": "C",
+      "event_count_L": 79,
+      "event_count_R": 120,
+      "event_L_fraction": 0.3969849246231156,
+      "final_weight_l1": 0.19672475804540948,
+      "mean_lr_imbalance": 0.0012628097046184395,
+      "final_mean_activation": 0.2980826983656369
+    },
+    {
+      "seed": 999,
+      "arm": "closed_loop",
+      "config": "C",
+      "event_count_L": 78,
+      "event_count_R": 121,
+      "event_L_fraction": 0.39195979899497485,
+      "final_weight_l1": 0.1967230780870518,
+      "mean_lr_imbalance": 0.004160785164591979,
+      "final_mean_activation": 0.29495652539522543
+    },
+    {
+      "seed": 999,
+      "arm": "matched_shuffle",
+      "config": "C",
+      "event_count_L": 78,
+      "event_count_R": 121,
+      "event_L_fraction": 0.39195979899497485,
+      "final_weight_l1": 0.19672795275996846,
+      "mean_lr_imbalance": 0.005764060195776704,
+      "final_mean_activation": 0.2846646034450206
+    },
+    {
+      "seed": 42,
+      "arm": "open_loop",
+      "config": "D",
+      "event_count_L": 186,
+      "event_count_R": 213,
+      "event_L_fraction": 0.46616541353383456,
+      "final_weight_l1": 0.195175686665581,
+      "mean_lr_imbalance": 0.03790875514031638,
+      "final_mean_activation": 0.3287061683766467
+    },
+    {
+      "seed": 42,
+      "arm": "closed_loop",
+      "config": "D",
+      "event_count_L": 177,
+      "event_count_R": 222,
+      "event_L_fraction": 0.44360902255639095,
+      "final_weight_l1": 0.1951814642930546,
+      "mean_lr_imbalance": 0.03160826647358044,
+      "final_mean_activation": 0.32949342400816195
+    },
+    {
+      "seed": 42,
+      "arm": "matched_shuffle",
+      "config": "D",
+      "event_count_L": 177,
+      "event_count_R": 222,
+      "event_L_fraction": 0.44360902255639095,
+      "final_weight_l1": 0.19518180016414688,
+      "mean_lr_imbalance": 0.0351586054189398,
+      "final_mean_activation": 0.31625850569598396
+    },
+    {
+      "seed": 999,
+      "arm": "open_loop",
+      "config": "D",
+      "event_count_L": 186,
+      "event_count_R": 213,
+      "event_L_fraction": 0.46616541353383456,
+      "final_weight_l1": 0.19671524973507135,
+      "mean_lr_imbalance": 0.021430861608370537,
+      "final_mean_activation": 0.29082435456856526
+    },
+    {
+      "seed": 999,
+      "arm": "closed_loop",
+      "config": "D",
+      "event_count_L": 184,
+      "event_count_R": 215,
+      "event_L_fraction": 0.46115288220551376,
+      "final_weight_l1": 0.19671950067561914,
+      "mean_lr_imbalance": 0.020921392612250844,
+      "final_mean_activation": 0.2749680471063522
+    },
+    {
+      "seed": 999,
+      "arm": "matched_shuffle",
+      "config": "D",
+      "event_count_L": 184,
+      "event_count_R": 215,
+      "event_L_fraction": 0.46115288220551376,
+      "final_weight_l1": 0.19671902933741994,
+      "mean_lr_imbalance": 0.003620777229401678,
+      "final_mean_activation": 0.2823745963358056
+    }
+  ]
+}

@@ -1,0 +1,363 @@
+{
+  "experiment": "phase7_6B_lr_connectivity",
+  "seed": 42,
+  "unit_count": 300,
+  "total_steps": 120000,
+  "homeostasis_enabled": true,
+  "use_numba_plasticity": true,
+  "conditions": [
+    {
+      "condition": "lr_low",
+      "factor": 0.5,
+      "manipulation": {
+        "lr_connection_count": 13,
+        "lr_abs_weight_mean_before": 0.4769773508762031,
+        "lr_abs_weight_mean_after": 0.23848867543810154,
+        "lr_abs_weight_sum_before": 6.20070556139064,
+        "lr_abs_weight_sum_after": 3.10035278069532,
+        "rl_connection_count": 7,
+        "rl_abs_weight_mean": 0.5384195328789951,
+        "factor": 0.5,
+        "clamp_range": [
+          -1.0,
+          1.0
+        ],
+        "l_affected_count": 11,
+        "r_affected_count": 18,
+        "lr_overlap_count": 0
+      },
+      "groups": {
+        "A_L": {
+          "label": "L then R",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.2961839910411326,
+          "mean_energy": 0.3714029631806305,
+          "weight_mean": 0.0009592652848639911,
+          "weight_abs_mean": 0.3000000000000003,
+          "elapsed_sec": 413.53745317459106
+        },
+        "A_R": {
+          "label": "R then L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.2789381166096996,
+          "mean_energy": 0.355929014091414,
+          "weight_mean": 0.0009588419922570711,
+          "weight_abs_mean": 0.29999999999999943,
+          "elapsed_sec": 463.8861265182495
+        },
+        "C": {
+          "label": "repeat A_L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.2961839910411326,
+          "mean_energy": 0.3714029631806305,
+          "weight_mean": 0.0009592652848639911,
+          "weight_abs_mean": 0.3000000000000003,
+          "elapsed_sec": 443.24346470832825
+        },
+        "D_L": {
+          "label": "plasticity off (L then R)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37100462521097277,
+          "mean_energy": 0.39393465472898676,
+          "weight_mean": 0.0005716620361274312,
+          "weight_abs_mean": 0.49626476890182714,
+          "elapsed_sec": 307.7632989883423
+        },
+        "D_R": {
+          "label": "plasticity off (R then L)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37352212282302966,
+          "mean_energy": 0.3831400439512736,
+          "weight_mean": 0.0005716620361274312,
+          "weight_abs_mean": 0.49626476890182714,
+          "elapsed_sec": 315.15053725242615
+        }
+      },
+      "verdict": {
+        "repeatability": "deterministic_history_sensitive",
+        "repeat_weight_l1": 0.0,
+        "diverge_weight_l1": 7.554914673135723e-05,
+        "plasticity_causal": "plasticity_drives_divergence",
+        "D_L_weight_drift": 0.0,
+        "A_L_weight_drift": 0.19631083805404206,
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "D_L_vs_D_R_weight_l1": 0.0,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 7.554914673135723e-05,
+        "delta_weight_l1": 7.554914673135723e-05,
+        "final_weight_cosine": 0.9999999223430018,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true
+      }
+    },
+    {
+      "condition": "baseline",
+      "factor": 1.0,
+      "manipulation": {
+        "lr_connection_count": 13,
+        "lr_abs_weight_mean_before": 0.4769773508762031,
+        "lr_abs_weight_mean_after": 0.4769773508762031,
+        "lr_abs_weight_sum_before": 6.20070556139064,
+        "lr_abs_weight_sum_after": 6.20070556139064,
+        "rl_connection_count": 7,
+        "rl_abs_weight_mean": 0.5384195328789951,
+        "factor": 1.0,
+        "clamp_range": [
+          -1.0,
+          1.0
+        ],
+        "l_affected_count": 11,
+        "r_affected_count": 18,
+        "lr_overlap_count": 0
+      },
+      "groups": {
+        "A_L": {
+          "label": "L then R",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.3058509897497449,
+          "mean_energy": 0.3533479682438662,
+          "weight_mean": 0.0008510039057512091,
+          "weight_abs_mean": 0.3000000000000007,
+          "elapsed_sec": 414.3006286621094
+        },
+        "A_R": {
+          "label": "R then L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.31498985650316086,
+          "mean_energy": 0.34966402914551103,
+          "weight_mean": 0.0008493504105821761,
+          "weight_abs_mean": 0.3000000000000008,
+          "elapsed_sec": 394.09193682670593
+        },
+        "C": {
+          "label": "repeat A_L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.3058509897497449,
+          "mean_energy": 0.3533479682438662,
+          "weight_mean": 0.0008510039057512091,
+          "weight_abs_mean": 0.3000000000000007,
+          "elapsed_sec": 395.2340042591095
+        },
+        "D_L": {
+          "label": "plasticity off (L then R)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.375682444321743,
+          "mean_energy": 0.3760323374998449,
+          "weight_mean": 0.00040026882538335466,
+          "weight_abs_mean": 0.4969560404248361,
+          "elapsed_sec": 272.4216687679291
+        },
+        "D_R": {
+          "label": "plasticity off (R then L)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37294750837591767,
+          "mean_energy": 0.3901202025532386,
+          "weight_mean": 0.00040026882538335466,
+          "weight_abs_mean": 0.4969560404248361,
+          "elapsed_sec": 292.6472165584564
+        }
+      },
+      "verdict": {
+        "repeatability": "deterministic_history_sensitive",
+        "repeat_weight_l1": 0.0,
+        "diverge_weight_l1": 0.0001046276761678067,
+        "plasticity_causal": "plasticity_drives_divergence",
+        "D_L_weight_drift": 0.0,
+        "A_L_weight_drift": 0.19700188950342762,
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "D_L_vs_D_R_weight_l1": 0.0,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 0.0001046276761678067,
+        "delta_weight_l1": 0.0001046276761678067,
+        "final_weight_cosine": 0.9999998795776904,
+        "structural_bifurcation": "significant",
+        "causal_skeleton_intact": true
+      }
+    },
+    {
+      "condition": "lr_high",
+      "factor": 2.0,
+      "manipulation": {
+        "lr_connection_count": 13,
+        "lr_abs_weight_mean_before": 0.4769773508762031,
+        "lr_abs_weight_mean_after": 0.7518919085622288,
+        "lr_abs_weight_sum_before": 6.20070556139064,
+        "lr_abs_weight_sum_after": 9.774594811308974,
+        "rl_connection_count": 7,
+        "rl_abs_weight_mean": 0.5384195328789951,
+        "factor": 2.0,
+        "clamp_range": [
+          -1.0,
+          1.0
+        ],
+        "l_affected_count": 11,
+        "r_affected_count": 18,
+        "lr_overlap_count": 0
+      },
+      "groups": {
+        "A_L": {
+          "label": "L then R",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.28388987841850816,
+          "mean_energy": 0.36156889280752874,
+          "weight_mean": 0.0007724837776316302,
+          "weight_abs_mean": 0.3000000000000002,
+          "elapsed_sec": 346.03311252593994
+        },
+        "A_R": {
+          "label": "R then L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.2888002249297852,
+          "mean_energy": 0.35343191609608904,
+          "weight_mean": 0.0007694869012449416,
+          "weight_abs_mean": 0.2999999999999996,
+          "elapsed_sec": 342.25109601020813
+        },
+        "C": {
+          "label": "repeat A_L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.28388987841850816,
+          "mean_energy": 0.36156889280752874,
+          "weight_mean": 0.0007724837776316302,
+          "weight_abs_mean": 0.3000000000000002,
+          "elapsed_sec": 344.38804483413696
+        },
+        "D_L": {
+          "label": "plasticity off (L then R)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37278523096283606,
+          "mean_energy": 0.38309863363560764,
+          "weight_mean": 0.00026961296216740865,
+          "weight_abs_mean": 0.4977528942152304,
+          "elapsed_sec": 247.81005883216858
+        },
+        "D_R": {
+          "label": "plasticity off (R then L)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.3614570444800817,
+          "mean_energy": 0.3710712344465218,
+          "weight_mean": 0.00026961296216740865,
+          "weight_abs_mean": 0.4977528942152304,
+          "elapsed_sec": 245.56580591201782
+        }
+      },
+      "verdict": {
+        "repeatability": "deterministic_history_sensitive",
+        "repeat_weight_l1": 0.0,
+        "diverge_weight_l1": 8.19193905108243e-05,
+        "plasticity_causal": "plasticity_drives_divergence",
+        "D_L_weight_drift": 0.0,
+        "A_L_weight_drift": 0.19779924005601723,
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "D_L_vs_D_R_weight_l1": 0.0,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 8.19193905108243e-05,
+        "delta_weight_l1": 8.19193905108243e-05,
+        "final_weight_cosine": 0.9999999163343051,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true
+      }
+    }
+  ],
+  "comparison": {
+    "trend": "non_monotonic",
+    "deltas": [
+      {
+        "condition": "lr_low",
+        "delta_weight_l1": 7.554914673135723e-05,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 7.554914673135723e-05,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true,
+        "repeatability": "deterministic_history_sensitive",
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "manipulation": {
+          "lr_connection_count": 13,
+          "lr_abs_weight_mean_before": 0.4769773508762031,
+          "lr_abs_weight_mean_after": 0.23848867543810154,
+          "lr_abs_weight_sum_before": 6.20070556139064,
+          "lr_abs_weight_sum_after": 3.10035278069532,
+          "rl_connection_count": 7,
+          "rl_abs_weight_mean": 0.5384195328789951,
+          "factor": 0.5,
+          "clamp_range": [
+            -1.0,
+            1.0
+          ],
+          "l_affected_count": 11,
+          "r_affected_count": 18,
+          "lr_overlap_count": 0
+        }
+      },
+      {
+        "condition": "baseline",
+        "delta_weight_l1": 0.0001046276761678067,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 0.0001046276761678067,
+        "structural_bifurcation": "significant",
+        "causal_skeleton_intact": true,
+        "repeatability": "deterministic_history_sensitive",
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "manipulation": {
+          "lr_connection_count": 13,
+          "lr_abs_weight_mean_before": 0.4769773508762031,
+          "lr_abs_weight_mean_after": 0.4769773508762031,
+          "lr_abs_weight_sum_before": 6.20070556139064,
+          "lr_abs_weight_sum_after": 6.20070556139064,
+          "rl_connection_count": 7,
+          "rl_abs_weight_mean": 0.5384195328789951,
+          "factor": 1.0,
+          "clamp_range": [
+            -1.0,
+            1.0
+          ],
+          "l_affected_count": 11,
+          "r_affected_count": 18,
+          "lr_overlap_count": 0
+        }
+      },
+      {
+        "condition": "lr_high",
+        "delta_weight_l1": 8.19193905108243e-05,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 8.19193905108243e-05,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true,
+        "repeatability": "deterministic_history_sensitive",
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "manipulation": {
+          "lr_connection_count": 13,
+          "lr_abs_weight_mean_before": 0.4769773508762031,
+          "lr_abs_weight_mean_after": 0.7518919085622288,
+          "lr_abs_weight_sum_before": 6.20070556139064,
+          "lr_abs_weight_sum_after": 9.774594811308974,
+          "rl_connection_count": 7,
+          "rl_abs_weight_mean": 0.5384195328789951,
+          "factor": 2.0,
+          "clamp_range": [
+            -1.0,
+            1.0
+          ],
+          "l_affected_count": 11,
+          "r_affected_count": 18,
+          "lr_overlap_count": 0
+        }
+      }
+    ]
+  }
+}

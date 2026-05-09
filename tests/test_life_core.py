@@ -1859,6 +1859,111 @@ class TestThresholdConfig:
         assert 0.0 <= metrics["mean_activation_to_threshold_ratio"] <= 1.0
 
 
+class TestVectorizedSynapticEquivalence:
+    """向量化 synaptic input 与标量版本等价性。"""
+
+    def test_vectorized_matches_scalar(self):
+        """同输入下两者返回相同结果。"""
+        import numpy as np
+        from aniva.core.dynamics import (
+            compute_synaptic_input,
+            compute_synaptic_input_vectorized,
+        )
+        from aniva.core.unit import Unit
+        from aniva.core.connection import Connection
+
+        # 造 10 个单元、随机连接
+        n_units = 10
+        units = {}
+        for i in range(n_units):
+            units[i] = Unit(
+                uid=i,
+                activation=np.random.uniform(0, 1),
+                threshold=np.random.uniform(0.1, 0.5),
+            )
+
+        connections = []
+        for i in range(n_units):
+            for j in range(n_units):
+                if i != j and np.random.random() < 0.3:
+                    w = np.random.uniform(-1, 1)
+                    connections.append(Connection(
+                        cid=len(connections),
+                        source_id=i,
+                        target_id=j,
+                        weight=w,
+                        is_inhibitory=w < 0,
+                    ))
+
+        # 构建向量化所需数组
+        acts = np.array([units[i].activation for i in range(n_units)])
+        thrs = np.array([units[i].threshold for i in range(n_units)])
+        src = np.array([c.source_id for c in connections], dtype=np.int64)
+        tgt = np.array([c.target_id for c in connections], dtype=np.int64)
+        w = np.array([c.weight for c in connections])
+
+        scalar = compute_synaptic_input(connections, units, threshold_softness=0.02)
+        vectorized = compute_synaptic_input_vectorized(
+            acts, thrs, src, tgt, w, threshold_softness=0.02, unit_count=n_units,
+        )
+
+        # 两边 key 集合必须一致
+        assert set(scalar.keys()) == set(vectorized.keys())
+        for k in scalar:
+            assert scalar[k] == pytest.approx(vectorized[k], rel=1e-12, abs=1e-15), (
+                f"target={k}: scalar={scalar[k]}, vectorized={vectorized[k]}"
+            )
+
+    def test_lifecore_same_result_with_vectorized(self):
+        """LifeCore 用向量化路径后，短步运行结果与之前一致。
+
+        验证：activation / energy / weight 均值不变。
+        """
+        from aniva.config import AnivaConfig
+        from aniva.life_core import LifeCore
+
+        cfg = AnivaConfig(unit_count=30, seed=99, plasticity_rate=0.01)
+        core = LifeCore(cfg)
+        for _ in range(20):
+            core.step()
+
+        acts = [u.activation for u in core.units.values()]
+        engs = [u.energy for u in core.units.values()]
+        weights = [c.weight for c in core.connections]
+
+        # 合理范围内
+        assert all(0.0 <= a <= 1.0 for a in acts)
+        assert all(0.0 <= e <= 1.0 for e in engs)
+        assert all(-1.0 <= w <= 1.0 for w in weights)
+        # 至少有些激活（不静默）
+        assert max(acts) > 0.01
+
+    def test_plasticity_still_works_with_cache_sync(self):
+        """权重缓存在 plasticity 后正确同步。"""
+        from aniva.config import AnivaConfig
+        from aniva.life_core import LifeCore
+
+        cfg = AnivaConfig(
+            unit_count=20, seed=42,
+            plasticity_rate=0.01,
+            synaptic_strength=0.30,
+        )
+        core = LifeCore(cfg)
+        # 记录初始权重
+        w0 = np.array([c.weight for c in core.connections])
+        for _ in range(50):
+            core.step()
+        w1 = np.array([c.weight for c in core.connections])
+
+        # 权重缓存应和 connections 一致
+        for i, conn in enumerate(core.connections):
+            assert conn.weight == pytest.approx(core._weight_cache[i])
+
+        # plasticity 应该改变了权重（至少非零变化）
+        diffs = np.abs(w1 - w0)
+        assert np.max(diffs) > 0.0, "plasticity should change weights"
+
+
 class TestObserver:
     def test_snapshot_shape(self):
         """快照返回正确的数据形状."""

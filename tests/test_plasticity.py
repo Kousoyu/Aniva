@@ -1,9 +1,9 @@
 """Plasticity 测试 — Hebbian 共活性 + 能量门控 + 遗忘."""
 
 import math
+import numpy as np
 import pytest
 from aniva.config import AnivaConfig
-from aniva.core.unit import Unit
 from aniva.core.connection import Connection
 from aniva.core.plasticity import apply_plasticity, _output_strength
 from aniva.life_core import LifeCore
@@ -44,13 +44,12 @@ class TestApplyPlasticity:
     """apply_plasticity 单元测试."""
 
     def test_coactive_excitatory_strengthens(self):
-        source = Unit(uid=0, activation=0.8, threshold=0.3, energy=0.8)
-        target = Unit(uid=1, activation=0.7, threshold=0.25, energy=0.8)
         conn = Connection(cid=0, source_id=0, target_id=1, weight=0.3)
-        units = {0: source, 1: target}
-        connections = [conn]
+        acts = np.array([0.8, 0.7], dtype=np.float64)
+        thrs = np.array([0.3, 0.25], dtype=np.float64)
+        engs = np.array([0.8, 0.8], dtype=np.float64)
 
-        apply_plasticity(connections, units,
+        apply_plasticity([conn], acts, thrs, engs,
                          plasticity_rate=0.01,
                          threshold_softness=0.02,
                          dt=1.0)
@@ -58,14 +57,13 @@ class TestApplyPlasticity:
         assert conn.weight > 0.3
 
     def test_coactive_inhibitory_becomes_more_inhibitory(self):
-        source = Unit(uid=0, activation=0.8, threshold=0.3, energy=0.8)
-        target = Unit(uid=1, activation=0.7, threshold=0.25, energy=0.8)
         conn = Connection(cid=0, source_id=0, target_id=1, weight=-0.3,
                           is_inhibitory=True)
-        units = {0: source, 1: target}
-        connections = [conn]
+        acts = np.array([0.8, 0.7], dtype=np.float64)
+        thrs = np.array([0.3, 0.25], dtype=np.float64)
+        engs = np.array([0.8, 0.8], dtype=np.float64)
 
-        apply_plasticity(connections, units,
+        apply_plasticity([conn], acts, thrs, engs,
                          plasticity_rate=0.01,
                          threshold_softness=0.02,
                          dt=1.0)
@@ -73,13 +71,12 @@ class TestApplyPlasticity:
         assert conn.weight < -0.3
 
     def test_inactive_connection_decays(self):
-        source = Unit(uid=0, activation=0.01, threshold=0.3, energy=0.8)
-        target = Unit(uid=1, activation=0.01, threshold=0.25, energy=0.8)
         conn = Connection(cid=0, source_id=0, target_id=1, weight=0.5)
-        units = {0: source, 1: target}
-        connections = [conn]
+        acts = np.array([0.01, 0.01], dtype=np.float64)
+        thrs = np.array([0.3, 0.25], dtype=np.float64)
+        engs = np.array([0.8, 0.8], dtype=np.float64)
 
-        apply_plasticity(connections, units,
+        apply_plasticity([conn], acts, thrs, engs,
                          plasticity_rate=0.01,
                          threshold_softness=0.02,
                          dt=1.0)
@@ -88,19 +85,17 @@ class TestApplyPlasticity:
         assert conn.weight < 0.5
 
     def test_low_energy_reduces_plasticity(self):
-        source_high = Unit(uid=0, activation=0.8, threshold=0.3, energy=0.8)
-        target_high = Unit(uid=1, activation=0.7, threshold=0.25, energy=0.8)
-
-        source_low = Unit(uid=2, activation=0.8, threshold=0.3, energy=0.1)
-        target_low = Unit(uid=3, activation=0.7, threshold=0.25, energy=0.1)
+        acts = np.array([0.8, 0.7, 0.8, 0.7], dtype=np.float64)
+        thrs = np.array([0.3, 0.25, 0.3, 0.25], dtype=np.float64)
+        engs = np.array([0.8, 0.8, 0.1, 0.1], dtype=np.float64)
 
         conn_high = Connection(cid=0, source_id=0, target_id=1, weight=0.3)
         conn_low = Connection(cid=1, source_id=2, target_id=3, weight=0.3)
 
-        apply_plasticity([conn_high], {0: source_high, 1: target_high},
+        apply_plasticity([conn_high], acts, thrs, engs,
                          plasticity_rate=0.01,
                          threshold_softness=0.02, dt=1.0)
-        apply_plasticity([conn_low], {2: source_low, 3: target_low},
+        apply_plasticity([conn_low], acts, thrs, engs,
                          plasticity_rate=0.01,
                          threshold_softness=0.02, dt=1.0)
 
@@ -112,15 +107,15 @@ class TestApplyPlasticity:
         )
 
     def test_weight_stays_in_bounds(self):
-        source = Unit(uid=0, activation=1.0, threshold=0.1, energy=1.0)
-        target = Unit(uid=1, activation=1.0, threshold=0.1, energy=1.0)
         conn_exc = Connection(cid=0, source_id=0, target_id=1, weight=0.999)
         conn_inh = Connection(cid=1, source_id=0, target_id=1, weight=-0.999,
                               is_inhibitory=True)
-        units = {0: source, 1: target}
+        acts = np.array([1.0, 1.0], dtype=np.float64)
+        thrs = np.array([0.1, 0.1], dtype=np.float64)
+        engs = np.array([1.0, 1.0], dtype=np.float64)
 
         for _ in range(100):
-            apply_plasticity([conn_exc, conn_inh], units,
+            apply_plasticity([conn_exc, conn_inh], acts, thrs, engs,
                              plasticity_rate=0.1,
                              threshold_softness=0.02, dt=1.0)
 
@@ -129,10 +124,11 @@ class TestApplyPlasticity:
 
     def test_plasticity_determinism(self):
         def run():
-            source = Unit(uid=0, activation=0.6, threshold=0.3, energy=0.7)
-            target = Unit(uid=1, activation=0.5, threshold=0.25, energy=0.7)
             conn = Connection(cid=0, source_id=0, target_id=1, weight=0.3)
-            apply_plasticity([conn], {0: source, 1: target},
+            acts = np.array([0.6, 0.5], dtype=np.float64)
+            thrs = np.array([0.3, 0.25], dtype=np.float64)
+            engs = np.array([0.7, 0.7], dtype=np.float64)
+            apply_plasticity([conn], acts, thrs, engs,
                              plasticity_rate=0.01,
                              threshold_softness=0.02, dt=1.0)
             return conn.weight
@@ -141,16 +137,16 @@ class TestApplyPlasticity:
 
     def test_decay_never_reverses_weight_sign(self):
         """衰减应向零趋近，不会翻转符号。"""
-        source = Unit(uid=0, activation=0.01, threshold=0.3, energy=0.8)
-        target = Unit(uid=1, activation=0.01, threshold=0.25, energy=0.8)
         conn_exc = Connection(cid=0, source_id=0, target_id=1, weight=0.001)
         conn_inh = Connection(cid=1, source_id=0, target_id=1, weight=-0.001,
                               is_inhibitory=True)
-        units = {0: source, 1: target}
+        acts = np.array([0.01, 0.01], dtype=np.float64)
+        thrs = np.array([0.3, 0.25], dtype=np.float64)
+        engs = np.array([0.8, 0.8], dtype=np.float64)
         connections = [conn_exc, conn_inh]
 
         for _ in range(100):
-            apply_plasticity(connections, units,
+            apply_plasticity(connections, acts, thrs, engs,
                              plasticity_rate=0.1,
                              threshold_softness=0.02, dt=1.0)
 
@@ -287,7 +283,7 @@ class TestExp5HistoryBifurcation:
         result = run_experiment(
             config=cfg, total_steps=200,
             snapshot_interval=100,
-            groups=["A_L", "A_R", "B", "C", "D", "F"],
+            groups=["A_L", "A_R", "B", "C", "D_L", "F"],
         )
         v = result["verdict"]
         assert "repeatability" in v

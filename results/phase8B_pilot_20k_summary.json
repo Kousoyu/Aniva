@@ -1,0 +1,79 @@
+{
+  "experiment": "phase8B_closed_loop_world_smoke",
+  "params": {
+    "steps": 20000,
+    "seeds": [
+      42,
+      999
+    ],
+    "event_interval": 200,
+    "event_duration": 80,
+    "base_p_L": 0.5,
+    "feedback_gain": 2.5,
+    "max_bias": 0.2,
+    "feedback_interval": 200,
+    "base_rng_seed": 20260504
+  },
+  "arms": [
+    {
+      "seed": 42,
+      "arm": "open_loop",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.19520847186702747,
+      "mean_lr_imbalance": 0.0449570061881192,
+      "final_mean_activation": 0.3032290502009133
+    },
+    {
+      "seed": 42,
+      "arm": "closed_loop",
+      "event_count_L": 41,
+      "event_count_R": 58,
+      "event_L_fraction": 0.41414141414141414,
+      "final_weight_l1": 0.19520165483618387,
+      "mean_lr_imbalance": 0.04152324774881814,
+      "final_mean_activation": 0.30677620125874533
+    },
+    {
+      "seed": 42,
+      "arm": "shuffled_feedback",
+      "event_count_L": 41,
+      "event_count_R": 58,
+      "event_L_fraction": 0.41414141414141414,
+      "final_weight_l1": 0.19520885053010217,
+      "mean_lr_imbalance": 0.038971966781087546,
+      "final_mean_activation": 0.29896612060559613
+    },
+    {
+      "seed": 999,
+      "arm": "open_loop",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.1967326705956616,
+      "mean_lr_imbalance": 0.01676741462154329,
+      "final_mean_activation": 0.2909025404186591
+    },
+    {
+      "seed": 999,
+      "arm": "closed_loop",
+      "event_count_L": 37,
+      "event_count_R": 62,
+      "event_L_fraction": 0.37373737373737376,
+      "final_weight_l1": 0.19672899688668846,
+      "mean_lr_imbalance": 0.015011037956337219,
+      "final_mean_activation": 0.25450183711757624
+    },
+    {
+      "seed": 999,
+      "arm": "shuffled_feedback",
+      "event_count_L": 38,
+      "event_count_R": 61,
+      "event_L_fraction": 0.3838383838383838,
+      "final_weight_l1": 0.1967330448771884,
+      "mean_lr_imbalance": 0.0031607940536397374,
+      "final_mean_activation": 0.2750121578250075
+    }
+  ]
+}

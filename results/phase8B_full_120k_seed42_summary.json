@@ -1,0 +1,48 @@
+{
+  "experiment": "phase8B_closed_loop_world_smoke",
+  "params": {
+    "steps": 120000,
+    "seeds": [
+      42
+    ],
+    "event_interval": 200,
+    "event_duration": 80,
+    "base_p_L": 0.5,
+    "feedback_gain": 2.5,
+    "max_bias": 0.2,
+    "feedback_interval": 200,
+    "base_rng_seed": 20260546
+  },
+  "arms": [
+    {
+      "seed": 42,
+      "arm": "open_loop",
+      "event_count_L": 278,
+      "event_count_R": 321,
+      "event_L_fraction": 0.46410684474123537,
+      "final_weight_l1": 0.19700309805358376,
+      "mean_lr_imbalance": 0.03826549654066265,
+      "final_mean_activation": 0.3241351741378613
+    },
+    {
+      "seed": 42,
+      "arm": "closed_loop",
+      "event_count_L": 276,
+      "event_count_R": 323,
+      "event_L_fraction": 0.4607679465776294,
+      "final_weight_l1": 0.19700265857702437,
+      "mean_lr_imbalance": 0.03693751610882671,
+      "final_mean_activation": 0.298434249160962
+    },
+    {
+      "seed": 42,
+      "arm": "shuffled_feedback",
+      "event_count_L": 269,
+      "event_count_R": 330,
+      "event_L_fraction": 0.44908180300500833,
+      "final_weight_l1": 0.19700239543787296,
+      "mean_lr_imbalance": 0.03868129185958575,
+      "final_mean_activation": 0.30917222406656675
+    }
+  ]
+}

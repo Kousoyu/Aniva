@@ -1,0 +1,551 @@
+{
+  "experiment": "phase7_8_combined_manipulation",
+  "seed": 123,
+  "unit_count": 300,
+  "total_steps": 120000,
+  "homeostasis_enabled": true,
+  "use_numba_plasticity": true,
+  "conditions": [
+    {
+      "condition": "baseline",
+      "factor": null,
+      "manipulation": {
+        "tc_tc_mean_before": 0.9966671430298739,
+        "tc_tc_std_before": 0.11322173380380689,
+        "tc_tc_mean_after": 0.9966671430298739,
+        "tc_tc_std_after": 0.11322173380380689,
+        "tc_factor": 1.0,
+        "tc_clamp_range": [
+          0.5,
+          1.5
+        ],
+        "lr_lr_connection_count": 16,
+        "lr_lr_abs_weight_mean_before": 0.3391232897360154,
+        "lr_lr_abs_weight_mean_after": 0.3391232897360154,
+        "lr_lr_abs_weight_sum_before": 5.4259726357762466,
+        "lr_lr_abs_weight_sum_after": 5.4259726357762466,
+        "lr_rl_connection_count": 23,
+        "lr_rl_abs_weight_mean": 0.5124492000218307,
+        "lr_factor": 1.0,
+        "lr_clamp_range": [
+          -1.0,
+          1.0
+        ],
+        "lr_l_affected_count": 24,
+        "lr_r_affected_count": 18,
+        "lr_lr_overlap_count": 0
+      },
+      "groups": {
+        "A_L": {
+          "label": "L then R",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.31734334890104643,
+          "mean_energy": 0.34009217920254464,
+          "weight_mean": 0.001338201473483435,
+          "weight_abs_mean": 0.30000000000000027,
+          "elapsed_sec": 404.17383766174316
+        },
+        "A_R": {
+          "label": "R then L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.3200020208715859,
+          "mean_energy": 0.35027137019843074,
+          "weight_mean": 0.0013384808178196273,
+          "weight_abs_mean": 0.3000000000000009,
+          "elapsed_sec": 461.2612955570221
+        },
+        "C": {
+          "label": "repeat A_L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.31734334890104643,
+          "mean_energy": 0.34009217920254464,
+          "weight_mean": 0.001338201473483435,
+          "weight_abs_mean": 0.30000000000000027,
+          "elapsed_sec": 402.33700466156006
+        },
+        "D_L": {
+          "label": "plasticity off (L then R)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37725592982154244,
+          "mean_energy": 0.3923436959698829,
+          "weight_mean": 0.0010841217503497812,
+          "weight_abs_mean": 0.4950954547379169,
+          "elapsed_sec": 263.01572465896606
+        },
+        "D_R": {
+          "label": "plasticity off (R then L)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.3723063111637187,
+          "mean_energy": 0.39019027941563605,
+          "weight_mean": 0.0010841217503497812,
+          "weight_abs_mean": 0.4950954547379169,
+          "elapsed_sec": 249.49151754379272
+        }
+      },
+      "verdict": {
+        "repeatability": "deterministic_history_sensitive",
+        "repeat_weight_l1": 0.0,
+        "diverge_weight_l1": 5.289956980159306e-05,
+        "plasticity_causal": "plasticity_drives_divergence",
+        "D_L_weight_drift": 0.0,
+        "A_L_weight_drift": 0.1951350369105165,
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "D_L_vs_D_R_weight_l1": 0.0,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 5.289956980159306e-05,
+        "delta_weight_l1": 5.289956980159306e-05,
+        "final_weight_cosine": 0.9999999568107709,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true
+      }
+    },
+    {
+      "condition": "high_std",
+      "factor": null,
+      "manipulation": {
+        "tc_tc_mean_before": 0.9966671430298739,
+        "tc_tc_std_before": 0.11322173380380689,
+        "tc_tc_mean_after": 0.9966671430298739,
+        "tc_tc_std_after": 0.22644346760761377,
+        "tc_factor": 2.0,
+        "tc_clamp_range": [
+          0.5,
+          1.5
+        ],
+        "lr_lr_connection_count": 16,
+        "lr_lr_abs_weight_mean_before": 0.3391232897360154,
+        "lr_lr_abs_weight_mean_after": 0.3391232897360154,
+        "lr_lr_abs_weight_sum_before": 5.4259726357762466,
+        "lr_lr_abs_weight_sum_after": 5.4259726357762466,
+        "lr_rl_connection_count": 23,
+        "lr_rl_abs_weight_mean": 0.5124492000218307,
+        "lr_factor": 1.0,
+        "lr_clamp_range": [
+          -1.0,
+          1.0
+        ],
+        "lr_l_affected_count": 24,
+        "lr_r_affected_count": 18,
+        "lr_lr_overlap_count": 0
+      },
+      "groups": {
+        "A_L": {
+          "label": "L then R",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.32400492139186987,
+          "mean_energy": 0.337687765371563,
+          "weight_mean": 0.0013167757548212431,
+          "weight_abs_mean": 0.30000000000000077,
+          "elapsed_sec": 363.0819697380066
+        },
+        "A_R": {
+          "label": "R then L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.3062162635315382,
+          "mean_energy": 0.3723938149481572,
+          "weight_mean": 0.0013173029977538915,
+          "weight_abs_mean": 0.3000000000000012,
+          "elapsed_sec": 505.38340044021606
+        },
+        "C": {
+          "label": "repeat A_L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.32400492139186987,
+          "mean_energy": 0.337687765371563,
+          "weight_mean": 0.0013167757548212431,
+          "weight_abs_mean": 0.30000000000000077,
+          "elapsed_sec": 466.85407996177673
+        },
+        "D_L": {
+          "label": "plasticity off (L then R)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37353527669210707,
+          "mean_energy": 0.37742271155138546,
+          "weight_mean": 0.0010841217503497812,
+          "weight_abs_mean": 0.4950954547379169,
+          "elapsed_sec": 299.5210905075073
+        },
+        "D_R": {
+          "label": "plasticity off (R then L)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37319210758951743,
+          "mean_energy": 0.3685659604629203,
+          "weight_mean": 0.0010841217503497812,
+          "weight_abs_mean": 0.4950954547379169,
+          "elapsed_sec": 328.5838191509247
+        }
+      },
+      "verdict": {
+        "repeatability": "deterministic_history_sensitive",
+        "repeat_weight_l1": 0.0,
+        "diverge_weight_l1": 7.11034451481732e-05,
+        "plasticity_causal": "plasticity_drives_divergence",
+        "D_L_weight_drift": 0.0,
+        "A_L_weight_drift": 0.19513148725476526,
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "D_L_vs_D_R_weight_l1": 0.0,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 7.11034451481732e-05,
+        "delta_weight_l1": 7.11034451481732e-05,
+        "final_weight_cosine": 0.9999999195705149,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true
+      }
+    },
+    {
+      "condition": "lr_high",
+      "factor": null,
+      "manipulation": {
+        "tc_tc_mean_before": 0.9966671430298739,
+        "tc_tc_std_before": 0.11322173380380689,
+        "tc_tc_mean_after": 0.9966671430298739,
+        "tc_tc_std_after": 0.11322173380380689,
+        "tc_factor": 1.0,
+        "tc_clamp_range": [
+          0.5,
+          1.5
+        ],
+        "lr_lr_connection_count": 16,
+        "lr_lr_abs_weight_mean_before": 0.3391232897360154,
+        "lr_lr_abs_weight_mean_after": 0.5280806321805173,
+        "lr_lr_abs_weight_sum_before": 5.4259726357762466,
+        "lr_lr_abs_weight_sum_after": 8.449290114888276,
+        "lr_rl_connection_count": 23,
+        "lr_rl_abs_weight_mean": 0.5124492000218307,
+        "lr_factor": 2.0,
+        "lr_clamp_range": [
+          -1.0,
+          1.0
+        ],
+        "lr_l_affected_count": 24,
+        "lr_r_affected_count": 18,
+        "lr_lr_overlap_count": 0
+      },
+      "groups": {
+        "A_L": {
+          "label": "L then R",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.30554590325808195,
+          "mean_energy": 0.3686696911219959,
+          "weight_mean": 0.001349133364032121,
+          "weight_abs_mean": 0.2999999999999999,
+          "elapsed_sec": 490.28602623939514
+        },
+        "A_R": {
+          "label": "R then L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.31658610944219023,
+          "mean_energy": 0.38431478670569075,
+          "weight_mean": 0.0013455554131689299,
+          "weight_abs_mean": 0.29999999999999927,
+          "elapsed_sec": 437.72687888145447
+        },
+        "C": {
+          "label": "repeat A_L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.30554590325808195,
+          "mean_energy": 0.3686696911219959,
+          "weight_mean": 0.001349133364032121,
+          "weight_abs_mean": 0.2999999999999999,
+          "elapsed_sec": 429.0773391723633
+        },
+        "D_L": {
+          "label": "plasticity off (L then R)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37961079887708526,
+          "mean_energy": 0.3910957576142573,
+          "weight_mean": 0.0011053032309955417,
+          "weight_abs_mean": 0.49576955005098533,
+          "elapsed_sec": 326.57201647758484
+        },
+        "D_R": {
+          "label": "plasticity off (R then L)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.3784409116491936,
+          "mean_energy": 0.37995545608315645,
+          "weight_mean": 0.0011053032309955417,
+          "weight_abs_mean": 0.49576955005098533,
+          "elapsed_sec": 382.29327273368835
+        }
+      },
+      "verdict": {
+        "repeatability": "deterministic_history_sensitive",
+        "repeat_weight_l1": 0.0,
+        "diverge_weight_l1": 6.101593607147001e-05,
+        "plasticity_causal": "plasticity_drives_divergence",
+        "D_L_weight_drift": 0.0,
+        "A_L_weight_drift": 0.19580747706122828,
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "D_L_vs_D_R_weight_l1": 0.0,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 6.101593607147001e-05,
+        "delta_weight_l1": 6.101593607147001e-05,
+        "final_weight_cosine": 0.9999999427502594,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true
+      }
+    },
+    {
+      "condition": "high_std+lr_high",
+      "factor": null,
+      "manipulation": {
+        "tc_tc_mean_before": 0.9966671430298739,
+        "tc_tc_std_before": 0.11322173380380689,
+        "tc_tc_mean_after": 0.9966671430298739,
+        "tc_tc_std_after": 0.22644346760761377,
+        "tc_factor": 2.0,
+        "tc_clamp_range": [
+          0.5,
+          1.5
+        ],
+        "lr_lr_connection_count": 16,
+        "lr_lr_abs_weight_mean_before": 0.3391232897360154,
+        "lr_lr_abs_weight_mean_after": 0.5280806321805173,
+        "lr_lr_abs_weight_sum_before": 5.4259726357762466,
+        "lr_lr_abs_weight_sum_after": 8.449290114888276,
+        "lr_rl_connection_count": 23,
+        "lr_rl_abs_weight_mean": 0.5124492000218307,
+        "lr_factor": 2.0,
+        "lr_clamp_range": [
+          -1.0,
+          1.0
+        ],
+        "lr_l_affected_count": 24,
+        "lr_r_affected_count": 18,
+        "lr_lr_overlap_count": 0
+      },
+      "groups": {
+        "A_L": {
+          "label": "L then R",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.32871748513407023,
+          "mean_energy": 0.33208602093655104,
+          "weight_mean": 0.001325934727177051,
+          "weight_abs_mean": 0.2999999999999994,
+          "elapsed_sec": 415.17259645462036
+        },
+        "A_R": {
+          "label": "R then L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.30873546930121554,
+          "mean_energy": 0.3678599701338068,
+          "weight_mean": 0.00132528073645505,
+          "weight_abs_mean": 0.2999999999999998,
+          "elapsed_sec": 341.6213581562042
+        },
+        "C": {
+          "label": "repeat A_L",
+          "plasticity_rate": 0.0001,
+          "final_step": 120000,
+          "mean_activation": 0.32871748513407023,
+          "mean_energy": 0.33208602093655104,
+          "weight_mean": 0.001325934727177051,
+          "weight_abs_mean": 0.2999999999999994,
+          "elapsed_sec": 388.89689350128174
+        },
+        "D_L": {
+          "label": "plasticity off (L then R)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.37079617120435343,
+          "mean_energy": 0.3724111421558839,
+          "weight_mean": 0.0011053032309955417,
+          "weight_abs_mean": 0.49576955005098533,
+          "elapsed_sec": 291.8923661708832
+        },
+        "D_R": {
+          "label": "plasticity off (R then L)",
+          "plasticity_rate": 0.0,
+          "final_step": 120000,
+          "mean_activation": 0.3765290434149715,
+          "mean_energy": 0.38530949152762645,
+          "weight_mean": 0.0011053032309955417,
+          "weight_abs_mean": 0.49576955005098533,
+          "elapsed_sec": 317.9587709903717
+        }
+      },
+      "verdict": {
+        "repeatability": "deterministic_history_sensitive",
+        "repeat_weight_l1": 0.0,
+        "diverge_weight_l1": 6.240452442217544e-05,
+        "plasticity_causal": "plasticity_drives_divergence",
+        "D_L_weight_drift": 0.0,
+        "A_L_weight_drift": 0.19580442068021384,
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "D_L_vs_D_R_weight_l1": 0.0,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 6.240452442217544e-05,
+        "delta_weight_l1": 6.240452442217544e-05,
+        "final_weight_cosine": 0.9999999379975021,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true
+      }
+    }
+  ],
+  "comparison": {
+    "trend": "non_monotonic",
+    "deltas": [
+      {
+        "condition": "baseline",
+        "delta_weight_l1": 5.289956980159306e-05,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 5.289956980159306e-05,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true,
+        "repeatability": "deterministic_history_sensitive",
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "manipulation": {
+          "tc_tc_mean_before": 0.9966671430298739,
+          "tc_tc_std_before": 0.11322173380380689,
+          "tc_tc_mean_after": 0.9966671430298739,
+          "tc_tc_std_after": 0.11322173380380689,
+          "tc_factor": 1.0,
+          "tc_clamp_range": [
+            0.5,
+            1.5
+          ],
+          "lr_lr_connection_count": 16,
+          "lr_lr_abs_weight_mean_before": 0.3391232897360154,
+          "lr_lr_abs_weight_mean_after": 0.3391232897360154,
+          "lr_lr_abs_weight_sum_before": 5.4259726357762466,
+          "lr_lr_abs_weight_sum_after": 5.4259726357762466,
+          "lr_rl_connection_count": 23,
+          "lr_rl_abs_weight_mean": 0.5124492000218307,
+          "lr_factor": 1.0,
+          "lr_clamp_range": [
+            -1.0,
+            1.0
+          ],
+          "lr_l_affected_count": 24,
+          "lr_r_affected_count": 18,
+          "lr_lr_overlap_count": 0
+        }
+      },
+      {
+        "condition": "high_std",
+        "delta_weight_l1": 7.11034451481732e-05,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 7.11034451481732e-05,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true,
+        "repeatability": "deterministic_history_sensitive",
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "manipulation": {
+          "tc_tc_mean_before": 0.9966671430298739,
+          "tc_tc_std_before": 0.11322173380380689,
+          "tc_tc_mean_after": 0.9966671430298739,
+          "tc_tc_std_after": 0.22644346760761377,
+          "tc_factor": 2.0,
+          "tc_clamp_range": [
+            0.5,
+            1.5
+          ],
+          "lr_lr_connection_count": 16,
+          "lr_lr_abs_weight_mean_before": 0.3391232897360154,
+          "lr_lr_abs_weight_mean_after": 0.3391232897360154,
+          "lr_lr_abs_weight_sum_before": 5.4259726357762466,
+          "lr_lr_abs_weight_sum_after": 5.4259726357762466,
+          "lr_rl_connection_count": 23,
+          "lr_rl_abs_weight_mean": 0.5124492000218307,
+          "lr_factor": 1.0,
+          "lr_clamp_range": [
+            -1.0,
+            1.0
+          ],
+          "lr_l_affected_count": 24,
+          "lr_r_affected_count": 18,
+          "lr_lr_overlap_count": 0
+        }
+      },
+      {
+        "condition": "lr_high",
+        "delta_weight_l1": 6.101593607147001e-05,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 6.101593607147001e-05,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true,
+        "repeatability": "deterministic_history_sensitive",
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "manipulation": {
+          "tc_tc_mean_before": 0.9966671430298739,
+          "tc_tc_std_before": 0.11322173380380689,
+          "tc_tc_mean_after": 0.9966671430298739,
+          "tc_tc_std_after": 0.11322173380380689,
+          "tc_factor": 1.0,
+          "tc_clamp_range": [
+            0.5,
+            1.5
+          ],
+          "lr_lr_connection_count": 16,
+          "lr_lr_abs_weight_mean_before": 0.3391232897360154,
+          "lr_lr_abs_weight_mean_after": 0.5280806321805173,
+          "lr_lr_abs_weight_sum_before": 5.4259726357762466,
+          "lr_lr_abs_weight_sum_after": 8.449290114888276,
+          "lr_rl_connection_count": 23,
+          "lr_rl_abs_weight_mean": 0.5124492000218307,
+          "lr_factor": 2.0,
+          "lr_clamp_range": [
+            -1.0,
+            1.0
+          ],
+          "lr_l_affected_count": 24,
+          "lr_r_affected_count": 18,
+          "lr_lr_overlap_count": 0
+        }
+      },
+      {
+        "condition": "high_std+lr_high",
+        "delta_weight_l1": 6.240452442217544e-05,
+        "initial_weight_l1": 0.0,
+        "final_weight_l1": 6.240452442217544e-05,
+        "structural_bifurcation": "emerging",
+        "causal_skeleton_intact": true,
+        "repeatability": "deterministic_history_sensitive",
+        "plasticity_off_symmetry": "order_irrelevant_without_plasticity",
+        "manipulation": {
+          "tc_tc_mean_before": 0.9966671430298739,
+          "tc_tc_std_before": 0.11322173380380689,
+          "tc_tc_mean_after": 0.9966671430298739,
+          "tc_tc_std_after": 0.22644346760761377,
+          "tc_factor": 2.0,
+          "tc_clamp_range": [
+            0.5,
+            1.5
+          ],
+          "lr_lr_connection_count": 16,
+          "lr_lr_abs_weight_mean_before": 0.3391232897360154,
+          "lr_lr_abs_weight_mean_after": 0.5280806321805173,
+          "lr_lr_abs_weight_sum_before": 5.4259726357762466,
+          "lr_lr_abs_weight_sum_after": 8.449290114888276,
+          "lr_rl_connection_count": 23,
+          "lr_rl_abs_weight_mean": 0.5124492000218307,
+          "lr_factor": 2.0,
+          "lr_clamp_range": [
+            -1.0,
+            1.0
+          ],
+          "lr_l_affected_count": 24,
+          "lr_r_affected_count": 18,
+          "lr_lr_overlap_count": 0
+        }
+      }
+    ]
+  }
+}

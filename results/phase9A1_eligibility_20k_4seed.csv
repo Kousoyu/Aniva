@@ -1,0 +1,17 @@
+seed,temporal,arm,total_events,event_count_L,event_count_R,final_weight_l1
+42,False,open_loop_poisson,97,57,40,0.19520629910602225
+42,False,closed_loop_triggered,15,0,15,0.19520629423805297
+77,False,open_loop_poisson,98,53,45,0.19752678048940142
+77,False,closed_loop_triggered,11,11,0,0.19753772375287373
+123,False,open_loop_poisson,99,48,51,0.19443848908902078
+123,False,closed_loop_triggered,18,0,18,0.19445813923669875
+999,False,open_loop_poisson,113,69,44,0.19673012057392567
+999,False,closed_loop_triggered,6,0,6,0.19673884571852251
+42,True,open_loop_poisson,97,57,40,0.19519121318601593
+42,True,closed_loop_triggered,9,0,9,0.19519959197626854
+77,True,open_loop_poisson,98,53,45,0.19753058653106964
+77,True,closed_loop_triggered,17,17,0,0.1975291722459985
+123,True,open_loop_poisson,99,48,51,0.19443536361467342
+123,True,closed_loop_triggered,19,0,19,0.19445481101633078
+999,True,open_loop_poisson,113,69,44,0.19671984380390445
+999,True,closed_loop_triggered,2,0,2,0.19672728484935342

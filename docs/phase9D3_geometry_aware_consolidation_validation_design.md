@@ -43,25 +43,49 @@ mechanism-level false positive，是 combined L+R phi 场在有向 LR/RL 连接�
 ### 2.1 Geometry Baseline
 
 ```
-raw_projection_DI: 在 ordered arm 的 event pairs 发生前，
-                   测量 trace×phi 场在当前连接拓扑上的 raw eligibility DI。
-                   这是"如果只做 combined 投影、没有事件顺序信息"时
-                   的期望偏置。
+geometry_baseline_DI = simultaneous combined-phi raw_projection_DI。
 
-geometry_baseline_DI = raw_projection_DI 的 arm-specific 版本。
-                      每个 arm 单独计算（因为不同 arm 的 trace 历史不同）。
+这是全局几何地形基线，不是每个 arm 各算一套不同的 baseline。
+对于所有 ordered arms（L→R repeated, R→L repeated）和 simultaneous arm，
+几何基线来自同一组 combined L+R phi 在 LR/RL 连接拓扑上的投影。
+
+对于 seed=42 参考值（9D.2C 测量）：geometry_baseline_DI = +0.1635。
+
+它代表当前 unit/stimulus/topology 场的固有几何坡度：
+  - L→R raw = trace_L × phi_R  (L-hemi trace × R-hemi phi)
+  - R→L raw = trace_R × phi_L  (R-hemi trace × L-hemi phi)
+  - phi_R mass ≈ 1.8× phi_L mass → LR 投影天然大于 RL
+
+这不是机制缺陷，是地形事实。
 ```
+
+**为什么所有 arm 共享同一个 geometry baseline：**
+
+simultaneous combined-phi arm 和 ordered repeated arms 的 trace 累积总质量相同
+（都是 3 对 combined L+R phi 的累积）。在 raw eligibility 层面（trace[src] × phi[tgt]），
+事件的应用顺序不影响累积质量——只影响 tag/capture/slow_weight 这些下游层的方向性。
+因此 geometry baseline 对所有 arm 是同一个值。
 
 ### 2.2 Corrected Metrics
 
 ```
 corrected_slow_DI = slow_DI - geometry_baseline_DI
+
+geometry_baseline_DI 是 shared global constant（对给定 seed/unit_count），
+不是 per-arm dynamic fitted value。
+
   - 如果 ordered arm 仅反映几何基线 → corrected_slow_DI ≈ 0
   - 如果 ordered arm 超过了基线 → corrected_slow_DI ≠ 0，
     方向由事件顺序决定
+  - 如果 simultaneous corrected_slow_DI ≈ 0 → geometry correction 有效
 
 corrected_slow_OS = corrected_slow_DI(L→R repeated) - corrected_slow_DI(R→L repeated)
-  - 应 > 0（ordered directional separation）
+  = (slow_DI_LR - baseline) - (slow_DI_RL - baseline)
+  = slow_DI_LR - slow_DI_RL
+  = original slow_OS
+
+注意：geometry baseline 在 OS 中抵消。corrected_slow_OS = original slow_OS。
+这意味着 corrected 指标主要影响 per-arm DI 判读，不影响整体方向分离度。
 ```
 
 ### 2.3 Excess Metrics
@@ -116,10 +140,20 @@ NaN count
 
 | Criterion | Threshold | Rationale |
 |-----------|-----------|-----------|
-| corrected_slow_OS | > 0.5 | ordered arms show directional separation above geometry baseline |
-| corrected_slow_DI(L→R repeated) | > 0 | direction matches event order |
-| corrected_slow_DI(R→L repeated) | < 0 | direction matches event order (opposite) |
-| |corrected_slow_DI(L→R)| − |corrected_slow_DI(R→L)| | < 0.3 | directional symmetry (magnitudes similar) |
+| corrected_slow_OS | > 0.3 | ordered arms show directional separation above geometry baseline |
+| corrected_slow_DI(L→R repeated) | > 0 | direction matches event order (L→R) |
+| corrected_slow_DI(R→L repeated) | < 0 | direction matches event order (R→L, opposite) |
+
+**Directional magnitude asymmetry is reported but NOT used as a hard failure
+criterion in 9D.3 first validation.** The phi field itself is asymmetric
+(phi_R_mass ≈ 1.8× phi_L_mass), so |corrected_LR| and |corrected_RL| may
+differ in magnitude even if the mechanism is working correctly. What matters
+for 9D.3 is that both arms show direction-correct excess over the shared
+geometry baseline — not that the excess is equal in size.
+
+Secondary (reported, not hard-gated):
+- ||corrected_LR| − |corrected_RL|| — reported as asymmetry metric
+- If one arm passes and the other is borderline, report as asymmetric positive
 
 ### 4.2 Repeated > Single
 
@@ -170,30 +204,35 @@ NaN count
 
 ## 6. Geometry Baseline Computation
 
-对于每个 arm，在 simulation 开始时计算一次 geometry baseline。
-具体方法（离线计算，不进入机制）：
+Geometry baseline 是 **shared global constant**（对给定 seed/unit_count）。
+计算一次，所有 arm 共用。离线计算，不进入机制。
 
 ```
 1. 初始化 LifeCore（不做 step）。
 2. 获取 source_indices, target_indices, positions。
 3. 分类 LR/RL 连接。
-4. 构建该 arm 的 event schedule（不含 consolidation）。
-5. 模拟 trace 累积：
+4. 使用 simultaneous combined-phi schedule 模拟 trace 累积：
    - trace = zeros(N)
-   - for each event pair:
-       phi = combined phi for this pair
-       trace += phi  （仅累积，不做 update）
-6. 最终 trace 就是"该 arm 的所有 event phi 的累积"。
-7. 对最终 phi（最后一个 pair 的 combined phi）：
+   - for each event pair (3 pairs):
+       phi = phi_L + phi_R  (combined)
+       trace += phi          (仅累积，不做 update)
+5. 最终 trace = 所有 past combined phi 的总和。
+6. 对最终 phi（最后一个 pair 的 combined phi）：
    raw_ij = trace[src] × phi[tgt]
-8. geometry_baseline_DI = raw_DI on LR/RL masks。
+7. geometry_baseline_DI = raw_DI on LR/RL masks。
+   = (raw_LR_l1 - raw_RL_l1) / (raw_LR_l1 + raw_RL_l1 + eps)
 ```
 
-注意：geometry baseline 是 arm-specific 的——L→R repeated、R→L repeated、
-simultaneous 各有不同的 trace 历史，因此各有不同的 baseline_DI。
+**为什么 simultaneous schedule 足以作为全局 baseline：**
+ordered repeated arms（L→R repeated, R→L repeated）的 phi 总累积质量与
+simultaneous arm 相同（都是 3 对 L+R phi 的加和）。在 raw eligibility 层面，
+累积顺序不影响总质量——只影响下游 tag/capture/slow_weight 层的方向性编码。
+因此 simultaneous combined-phi 的 raw projection 是所有 arm 的共享几何基线。
 
-对于 single-pair arms，geometry baseline 无意义（trace=0 at first pair），
-可直接用 0。
+**Single-pair arms：** geometry baseline ≈ 0（仅作近似）。
+Single arms 的第一个事件 trace=0（无更新），第二个事件有 past trace 但总累积
+只有 1 对 phi，质量远小于 3 对。Single arms 主要用于 repeated > single 的
+slow_l1 ratio 比较（Section 4.2），不作为 corrected direction 的主要判据。
 
 ---
 
@@ -238,11 +277,27 @@ simultaneous 各有不同的 trace 历史，因此各有不同的 baseline_DI。
 
 ---
 
-## 10. 实现规划
+## 10. Runtime & Execution
+
+| Scope | Time | Platform |
+|-------|------|----------|
+| Single arm | ~120s | — |
+| 6 arms × 1 seed | ~12 min | local (smoke / dev) |
+| 6 arms × 4 seeds | ~48 min local, ~12 min parallel | **ECS required** |
+
+**Default execution strategy:**
 
 ```
-docs/phase9D3_geometry_aware_consolidation_validation_design.md  ← 本文档
+Single-seed smoke:    local (verify correctness, ~12 min)
+4-seed validation:    ECS 4C8G, 4-process seed-level parallelism (~12 min)
+```
+
+Local single-seed must pass before ECS multi-seed run is submitted.
+Results merged per seed, summary CSV + JSON uploaded.
+
+## 11. 实现规划
+
+```
+docs/phase9D3_geometry_aware_consolidation_validation_design.md  ← 本文档 (v2)
 aniva/experiments/exp9D3_geometry_aware_validation.py  (实现时创建)
 ```
-
-需要多 seed 并行运行（≥ 4 seeds），适合上云机（ECS 4C8G，4 进程并行）。

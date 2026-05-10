@@ -337,10 +337,14 @@ def run_exact_replay(cfg, seed_env, event_trace, pulse_dur, code_sha, config_sha
 
     for s in range(TOTAL_STEPS):
         if s == WARMUP_END:
+            # Measure warmup drift (base Hebbian always runs; diagnostic only)
+            _warmup_pre_restore_delta = float(np.sum(np.abs(core._weight_cache - w0)))
             # Restore weights to pre-warmup values → plasticity OFF verified
             core._weight_cache[:] = w0
             for i, conn in enumerate(core.connections):
                 conn.weight = float(w0[i])
+            # P7: post-restore delta (must be ~0 since we just copied w0 back)
+            warmup_weight_delta = float(np.sum(np.abs(core._weight_cache - w0)))
             # Enable 9C/9D for replay phase
             core.config.event_pair_plasticity_enabled = True
             core.config.consolidation_enabled = True
@@ -388,9 +392,6 @@ def run_exact_replay(cfg, seed_env, event_trace, pulse_dur, code_sha, config_sha
             replay_idx += 1
 
     captures = core._consolidation_ledger if core._consolidation_ledger else []
-
-    # P7: weight delta during warmup
-    warmup_weight_delta = float(np.sum(np.abs(core._weight_cache - w0)))
 
     return event_log, {
         "arm": "exact_replay",
@@ -455,10 +456,11 @@ def run_divergent_warmup_replay(seed_env, event_trace, pulse_dur, code_sha):
         core_div.step(env_influences=influences if influences else None)
 
     # Restore weights (plasticity OFF guarantee)
-    warmup_weight_delta = float(np.sum(np.abs(core_div._weight_cache - w0_div)))
+    _warmup_pre_restore_delta_div = float(np.sum(np.abs(core_div._weight_cache - w0_div)))
     core_div._weight_cache[:] = w0_div
     for i, conn in enumerate(core_div.connections):
         conn.weight = float(w0_div[i])
+    warmup_weight_delta = float(np.sum(np.abs(core_div._weight_cache - w0_div)))
 
     # P6: state divergence at warmup end
     # Run the reference core through the same warmup for comparison
@@ -598,10 +600,11 @@ def run_matched_warmup_control(seed_env, pulse_dur, code_sha):
         influences = env_div.compute_influences(core_div.units, s)
         core_div.step(env_influences=influences if influences else None)
 
-    warmup_weight_delta = float(np.sum(np.abs(core_div._weight_cache - w0_div)))
+    _warmup_pre_restore_delta_mctrl = float(np.sum(np.abs(core_div._weight_cache - w0_div)))
     core_div._weight_cache[:] = w0_div
     for i, conn in enumerate(core_div.connections):
         conn.weight = float(w0_div[i])
+    warmup_weight_delta = float(np.sum(np.abs(core_div._weight_cache - w0_div)))
 
     warmup_act_div = _activation_divergence(
         core_div._activations, ref_snap["activations"])  # vs canonical at t=0

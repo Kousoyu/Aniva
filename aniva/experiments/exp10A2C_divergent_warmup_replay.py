@@ -604,7 +604,7 @@ def run_matched_warmup_control(seed_env, pulse_dur, code_sha):
         conn.weight = float(w0_div[i])
 
     warmup_act_div = _activation_divergence(
-        core_div._activations, w0_div)  # vs self at t=0
+        core_div._activations, ref_snap["activations"])  # vs canonical at t=0
 
     # ── Phase 2: create new core, enable 9C+9D, NO events ──
     cfg_replay = _make_cfg(seed_env, event_pair_on=True, consolidation_on=True)

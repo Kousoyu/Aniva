@@ -496,8 +496,16 @@ def _build_summaries(all_arm_results, code_sha):
 def _save_event_log(rows, path):
     if not rows:
         return
+    # Collect all field names across all arms (schemas differ)
+    all_fields = []
+    seen = set()
+    for r in rows:
+        for k in r:
+            if k not in seen:
+                all_fields.append(k)
+                seen.add(k)
     with open(path, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = csv.DictWriter(f, fieldnames=all_fields, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
 
@@ -735,8 +743,16 @@ def main(argv=None):
 
     if args.output_csv:
         if all_summaries:
+            # Collect all field names across arms (schemas differ)
+            all_sf = []
+            seen_sf = set()
+            for s in all_summaries:
+                for k in s:
+                    if k not in seen_sf:
+                        all_sf.append(k)
+                        seen_sf.add(k)
             with open(args.output_csv, "w", newline="", encoding="utf-8") as f:
-                w = csv.DictWriter(f, fieldnames=list(all_summaries[0].keys()))
+                w = csv.DictWriter(f, fieldnames=all_sf, extrasaction="ignore")
                 w.writeheader()
                 w.writerows(all_summaries)
             print(f"  Summary CSV: {args.output_csv}")

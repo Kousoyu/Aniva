@@ -1,0 +1,9 @@
+arm,seed_env,fast_weight_l1,slow_weight_l1,slow_weight_max_abs,capture_count,tag_mass_final,n_tagged_connections,saturation_frac,max_abs_weight,nan_hit,event_count,L_count,R_count,simultaneous_count,none_rate,trace_hash,wall_time_s,n_expected,n_replayed,hash_mismatches,replay_exact
+closed_loop,42,1848.58795963,0.00039344,4.611e-05,10,0.00069106,42,0.0,0.8292897,False,12,6,6,0,0.4545,7703cc1bad4f5ff5,117.5,,,,
+exact_replay,42,1848.58795963,0.00039344,4.611e-05,10,0.00069106,42,0.0,0.8292897,False,,,,,,7703cc1bad4f5ff5,129.5,12,12,0,True
+perturbed_replay,42,1848.58822031,0.00039344,4.611e-05,10,0.00069106,42,0.0,0.82920901,False,,,,,,7703cc1bad4f5ff5,112.9,12,12,0,True
+no_event_control,42,1848.60198842,0.0,0.0,0,0.0,0,0.0,0.82934604,False,,,,,,,88.0,,,,
+closed_loop,77,1870.30886795,0.00044013,2.433e-05,11,0.00065626,79,0.0,0.82926993,False,12,7,5,0,0.4545,38efd91fb1912b1c,82.3,,,,
+exact_replay,77,1870.30886795,0.00044013,2.433e-05,11,0.00065626,79,0.0,0.82926993,False,,,,,,38efd91fb1912b1c,109.6,12,12,0,True
+perturbed_replay,77,1870.2989349,0.00044013,2.433e-05,11,0.00065626,79,0.0,0.82930619,False,,,,,,38efd91fb1912b1c,110.4,12,12,0,True
+no_event_control,77,1870.30680629,0.0,0.0,0,0.0,0,0.0,0.82925871,False,,,,,,,104.2,,,,

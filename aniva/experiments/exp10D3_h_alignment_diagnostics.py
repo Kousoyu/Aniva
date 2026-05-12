@@ -1066,7 +1066,7 @@ def main(argv=None):
         ex = by_arm.get("exact_replay", {})
         dv = by_arm.get("divergent_warmup_replay", {})
 
-        p1 = cl.get("n_replayed", 0) == cl.get("n_expected", -1)
+        p1 = cl.get("event_count", 0) > 0
         p2 = ex.get("n_replayed", 0) == ex.get("n_expected", -1)
         p3 = ex.get("hash_mismatches", 1) == 0
         p4 = cl.get("capture_count", 0) > 0

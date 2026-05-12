@@ -122,6 +122,8 @@ class LifeCore:
         self._slow_weight_cache: np.ndarray | None = None
         self._capture_refractory_remaining: int = 0
         self._consolidation_ledger: list = []
+        # Phase 10D: historical context trace (per-unit slow activation history)
+        self._historical_context_trace = np.zeros(n, dtype=np.float64)
         self._positions = np.empty((n, 3), dtype=np.float64)
         self._time_constants = np.empty(n, dtype=np.float64)
 
@@ -247,6 +249,8 @@ class LifeCore:
                         self._source_indices,
                         self._target_indices,
                     ))
+                if cfg.historical_context_enabled:
+                    entry.update(self._get_historical_context_summary())
                 self._consolidation_ledger.append(entry)
 
     def _sync_weight_cache(self) -> None:
@@ -388,6 +392,14 @@ class LifeCore:
         if cfg.consolidation_enabled:
             self._consolidation_step()
 
+        # Phase 10D: historical context trace update (read-only slow variable)
+        if cfg.historical_context_enabled:
+            alpha = 1.0 / cfg.historical_context_tau
+            self._historical_context_trace += alpha * (acts - self._historical_context_trace)
+            if cfg.historical_context_clip:
+                np.clip(self._historical_context_trace, 0.0, 1.0,
+                        out=self._historical_context_trace)
+
         # 7. 可塑性：连接权重根据共活性变化
         if cfg.use_numba_plasticity and NUMBA_AVAILABLE and not cfg.temporal_plasticity_enabled:
             # Numba 路径：不支持 temporal plasticity，仅用于纯 Hebbian
@@ -500,3 +512,23 @@ class LifeCore:
     @property
     def connection_count(self) -> int:
         return len(self.connections)
+
+    def _get_historical_context_summary(self) -> dict:
+        """Read-only summary of the historical context trace (10D diagnostics)."""
+        h = self._historical_context_trace
+        h_sum = float(np.sum(h))
+        n = len(h)
+        summary = {
+            "historical_context_l1": h_sum,
+            "historical_context_mean": float(np.mean(h)),
+            "historical_context_max": float(np.max(h)),
+        }
+        if h_sum > 0.0:
+            p = h / h_sum
+            hhi = float(np.sum(p ** 2))
+            summary["historical_context_concentration"] = hhi
+            summary["historical_context_effective_support"] = 1.0 / hhi if hhi > 0.0 else float(n)
+        else:
+            summary["historical_context_concentration"] = 0.0
+            summary["historical_context_effective_support"] = 0.0
+        return summary

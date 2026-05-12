@@ -445,3 +445,141 @@ class TestCaptureDiagnostics:
         entry = core._consolidation_ledger[0]
         assert "tag_trace_alignment" not in entry
         assert "tag_concentration" not in entry
+
+
+class TestHistoricalContextTrace:
+    """Phase 10D.1 — per-unit slow activation history trace."""
+
+    def test_A_default_off_preserves_behavior(self):
+        """historical_context_enabled=False: h stays zero, no side effects."""
+        cfg = AnivaConfig(unit_count=20, seed=0)
+        assert cfg.historical_context_enabled is False
+        core = LifeCore(cfg)
+        assert np.all(core._historical_context_trace == 0.0)
+        for _ in range(50):
+            core.step()
+        assert np.all(core._historical_context_trace == 0.0)
+
+    def test_B_enabled_updates_toward_activation(self):
+        """h moves from 0 toward activation when enabled."""
+        cfg = AnivaConfig(unit_count=10, seed=1,
+                          historical_context_enabled=True,
+                          historical_context_tau=100.0)
+        core = LifeCore(cfg)
+        assert np.all(core._historical_context_trace == 0.0)
+        for _ in range(200):
+            core.step()
+        # After 200 steps with tau=100, h should have moved away from 0
+        assert np.any(core._historical_context_trace > 0.0)
+
+    def test_C_tau_controls_speed(self):
+        """Smaller tau → faster convergence toward activation."""
+        n, steps = 10, 500
+        cfg_fast = AnivaConfig(unit_count=n, seed=2,
+                               historical_context_enabled=True,
+                               historical_context_tau=50.0)
+        cfg_slow = AnivaConfig(unit_count=n, seed=2,
+                               historical_context_enabled=True,
+                               historical_context_tau=5000.0)
+        core_fast = LifeCore(cfg_fast)
+        core_slow = LifeCore(cfg_slow)
+        for _ in range(steps):
+            core_fast.step()
+            core_slow.step()
+        h_fast = core_fast._historical_context_trace.mean()
+        h_slow = core_slow._historical_context_trace.mean()
+        assert h_fast > h_slow, (
+            f"fast tau should produce larger h: fast={h_fast:.6f} slow={h_slow:.6f}")
+
+    def test_D_clip_keeps_h_in_unit_interval(self):
+        """h stays in [0, 1] when clip=True."""
+        cfg = AnivaConfig(unit_count=20, seed=3,
+                          historical_context_enabled=True,
+                          historical_context_tau=10.0,
+                          historical_context_clip=True)
+        core = LifeCore(cfg)
+        for _ in range(200):
+            core.step()
+        h = core._historical_context_trace
+        assert np.all(h >= 0.0), "h must be >= 0"
+        assert np.all(h <= 1.0), "h must be <= 1"
+        assert np.all(np.isfinite(h)), "h must be finite"
+
+    def test_E_no_weight_side_effect(self):
+        """Enabling h does not change weights or tag_cache."""
+        cfg_base = AnivaConfig(unit_count=30, seed=4,
+                               consolidation_enabled=True,
+                               event_pair_plasticity_enabled=False)
+        cfg_h = AnivaConfig(unit_count=30, seed=4,
+                            consolidation_enabled=True,
+                            event_pair_plasticity_enabled=False,
+                            historical_context_enabled=True,
+                            historical_context_tau=100.0)
+        core_base = LifeCore(cfg_base)
+        core_h = LifeCore(cfg_h)
+        for _ in range(100):
+            core_base.step()
+            core_h.step()
+        assert np.allclose(core_base._weight_cache, core_h._weight_cache), \
+            "weights must be identical regardless of h"
+        assert np.allclose(core_base._tag_cache, core_h._tag_cache), \
+            "tag_cache must be identical regardless of h"
+
+    def test_F_ledger_includes_h_fields_when_enabled(self):
+        """h summary fields appear in ledger when both flags enabled."""
+        cfg = AnivaConfig(
+            unit_count=50, seed=5,
+            consolidation_enabled=True,
+            consolidation_ledger_enabled=True,
+            historical_context_enabled=True,
+            historical_context_tau=100.0,
+        )
+        core = LifeCore(cfg)
+        core._tag_cache[:] = 0.1
+        core._energies[:] = 0.5
+        core._event_trace[:] = 0.05
+        core._capture_refractory_remaining = 0
+        core._consolidation_step()
+        assert len(core._consolidation_ledger) == 1
+        entry = core._consolidation_ledger[0]
+        for key in ("historical_context_l1", "historical_context_mean",
+                    "historical_context_max", "historical_context_concentration",
+                    "historical_context_effective_support"):
+            assert key in entry, f"missing key: {key}"
+        assert isinstance(entry["historical_context_l1"], float)
+
+    def test_G_ledger_excludes_h_fields_when_disabled(self):
+        """h summary fields absent when historical_context_enabled=False."""
+        cfg = AnivaConfig(
+            unit_count=50, seed=5,
+            consolidation_enabled=True,
+            consolidation_ledger_enabled=True,
+            historical_context_enabled=False,
+        )
+        core = LifeCore(cfg)
+        core._tag_cache[:] = 0.1
+        core._energies[:] = 0.5
+        core._event_trace[:] = 0.05
+        core._capture_refractory_remaining = 0
+        core._consolidation_step()
+        assert len(core._consolidation_ledger) == 1
+        entry = core._consolidation_ledger[0]
+        assert "historical_context_l1" not in entry
+        assert "historical_context_mean" not in entry
+
+    def test_H_summary_helper_returns_correct_keys(self):
+        """_get_historical_context_summary returns all expected keys."""
+        cfg = AnivaConfig(unit_count=20, seed=6,
+                          historical_context_enabled=True,
+                          historical_context_tau=50.0)
+        core = LifeCore(cfg)
+        for _ in range(100):
+            core.step()
+        summary = core._get_historical_context_summary()
+        for key in ("historical_context_l1", "historical_context_mean",
+                    "historical_context_max", "historical_context_concentration",
+                    "historical_context_effective_support"):
+            assert key in summary
+        assert summary["historical_context_l1"] >= 0.0
+        assert 0.0 <= summary["historical_context_mean"] <= 1.0
+

@@ -229,6 +229,7 @@ class LifeCore:
                 tag_mass = float(np.sum(np.abs(self._tag_cache)))
                 n_tagged = int(np.sum(self._tag_cache > 0))
                 entry = {
+                    "capture_step": self.step_count,
                     "capture_signal": signal,
                     "mean_energy": mean_energy,
                     "trace_mass_at_capture": trace_mass,

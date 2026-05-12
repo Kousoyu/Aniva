@@ -7,7 +7,7 @@ from aniva.config import AnivaConfig
 from aniva.life_core import LifeCore
 from aniva.core.plasticity_consolidation import (
     produce_tags, decay_tags, compute_capture_signal,
-    apply_capture, compute_effective_weights,
+    apply_capture, compute_effective_weights, compute_capture_diagnostics,
 )
 
 
@@ -341,3 +341,107 @@ class TestLedger:
         assert "tag_mass" in entry
         assert "slow_weight_delta_l1" in entry
         assert "n_tagged_connections" in entry
+
+
+class TestCaptureDiagnostics:
+    """10C.1 read-only context metrics at capture time."""
+
+    def _make_inputs(self, n_units=10, n_conn=20, seed=0):
+        rng = np.random.default_rng(seed)
+        src = rng.integers(0, n_units, size=n_conn)
+        tgt = rng.integers(0, n_units, size=n_conn)
+        return src, tgt, n_units, n_conn, rng
+
+    def test_A_zero_tags_returns_zeros(self):
+        """All metrics are 0.0 when tag_cache is all zeros."""
+        from aniva.core.plasticity_consolidation import compute_capture_diagnostics
+        src, tgt, n_units, n_conn, rng = self._make_inputs()
+        tag_cache = np.zeros(n_conn)
+        event_trace = rng.uniform(0.01, 0.1, n_units)
+        energies = rng.uniform(0.2, 0.6, n_units)
+        d = compute_capture_diagnostics(tag_cache, event_trace, energies, src, tgt)
+        assert d["tag_trace_alignment"] == 0.0
+        assert d["tag_weighted_energy"] == 0.0
+        assert d["tag_concentration"] == 0.0
+        assert d["tag_effective_support"] == 0.0
+
+    def test_B_uniform_tags_concentration(self):
+        """Uniform tags → tag_concentration = 1/n_conn, effective_support = n_conn."""
+        from aniva.core.plasticity_consolidation import compute_capture_diagnostics
+        src, tgt, n_units, n_conn, rng = self._make_inputs()
+        tag_cache = np.ones(n_conn)
+        event_trace = rng.uniform(0.01, 0.1, n_units)
+        energies = rng.uniform(0.2, 0.6, n_units)
+        d = compute_capture_diagnostics(tag_cache, event_trace, energies, src, tgt)
+        assert abs(d["tag_concentration"] - 1.0 / n_conn) < 1e-10
+        assert abs(d["tag_effective_support"] - float(n_conn)) < 1e-8
+
+    def test_C_concentrated_tags_higher_hhi(self):
+        """Single nonzero tag → tag_concentration = 1.0 (maximum HHI)."""
+        from aniva.core.plasticity_consolidation import compute_capture_diagnostics
+        src, tgt, n_units, n_conn, rng = self._make_inputs()
+        tag_cache = np.zeros(n_conn)
+        tag_cache[0] = 1.0
+        event_trace = rng.uniform(0.01, 0.1, n_units)
+        energies = rng.uniform(0.2, 0.6, n_units)
+        d = compute_capture_diagnostics(tag_cache, event_trace, energies, src, tgt)
+        assert abs(d["tag_concentration"] - 1.0) < 1e-10
+        assert abs(d["tag_effective_support"] - 1.0) < 1e-10
+
+    def test_D_alignment_one_when_proportional(self):
+        """tag_trace_alignment = 1.0 when tag_cache ∝ projected_trace."""
+        from aniva.core.plasticity_consolidation import compute_capture_diagnostics
+        n_units, n_conn = 8, 12
+        rng = np.random.default_rng(7)
+        src = rng.integers(0, n_units, size=n_conn)
+        tgt = rng.integers(0, n_units, size=n_conn)
+        event_trace = rng.uniform(0.05, 0.2, n_units)
+        energies = rng.uniform(0.2, 0.6, n_units)
+        projected = np.abs(event_trace[src]) * np.abs(event_trace[tgt])
+        tag_cache = projected * 2.5  # proportional → cosine = 1
+        d = compute_capture_diagnostics(tag_cache, event_trace, energies, src, tgt)
+        assert abs(d["tag_trace_alignment"] - 1.0) < 1e-10
+
+    def test_E_diagnostics_in_ledger_when_both_flags_enabled(self):
+        """Diagnostics keys appear in ledger entry when both flags are True."""
+        cfg = AnivaConfig(
+            unit_count=50, seed=42,
+            consolidation_enabled=True,
+            event_pair_plasticity_enabled=True,
+            consolidation_ledger_enabled=True,
+            consolidation_diagnostics_enabled=True,
+        )
+        core = LifeCore(cfg)
+        core._tag_cache[:] = 0.1
+        core._energies[:] = 0.5
+        core._event_trace[:] = 0.05
+        core._capture_refractory_remaining = 0
+        core._consolidation_step()
+        assert len(core._consolidation_ledger) == 1
+        entry = core._consolidation_ledger[0]
+        for key in ("tag_trace_alignment", "tag_weighted_energy",
+                    "tag_concentration", "tag_effective_support",
+                    "trace_concentration", "trace_effective_support"):
+            assert key in entry, f"missing key: {key}"
+        assert isinstance(entry["tag_trace_alignment"], float)
+        assert isinstance(entry["tag_weighted_energy"], float)
+
+    def test_E2_diagnostics_absent_when_flag_disabled(self):
+        """Diagnostics keys absent when consolidation_diagnostics_enabled=False."""
+        cfg = AnivaConfig(
+            unit_count=50, seed=42,
+            consolidation_enabled=True,
+            event_pair_plasticity_enabled=True,
+            consolidation_ledger_enabled=True,
+            consolidation_diagnostics_enabled=False,
+        )
+        core = LifeCore(cfg)
+        core._tag_cache[:] = 0.1
+        core._energies[:] = 0.5
+        core._event_trace[:] = 0.05
+        core._capture_refractory_remaining = 0
+        core._consolidation_step()
+        assert len(core._consolidation_ledger) == 1
+        entry = core._consolidation_ledger[0]
+        assert "tag_trace_alignment" not in entry
+        assert "tag_concentration" not in entry

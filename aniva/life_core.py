@@ -228,7 +228,7 @@ class LifeCore:
             if cfg.consolidation_ledger_enabled:
                 tag_mass = float(np.sum(np.abs(self._tag_cache)))
                 n_tagged = int(np.sum(self._tag_cache > 0))
-                self._consolidation_ledger.append({
+                entry = {
                     "capture_signal": signal,
                     "mean_energy": mean_energy,
                     "trace_mass_at_capture": trace_mass,
@@ -236,7 +236,17 @@ class LifeCore:
                     "slow_weight_delta_l1": delta_l1,
                     "refractory_remaining": self._capture_refractory_remaining,
                     "n_tagged_connections": n_tagged,
-                })
+                }
+                if cfg.consolidation_diagnostics_enabled:
+                    from aniva.core.plasticity_consolidation import compute_capture_diagnostics
+                    entry.update(compute_capture_diagnostics(
+                        self._tag_cache,
+                        self._event_trace,
+                        self._energies,
+                        self._source_indices,
+                        self._target_indices,
+                    ))
+                self._consolidation_ledger.append(entry)
 
     def _sync_weight_cache(self) -> None:
         """同步权重缓存：在 plasticity/homeostasis 修改 Connection.weight 后调用。"""

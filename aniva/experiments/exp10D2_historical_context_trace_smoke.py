@@ -141,6 +141,25 @@ def _restore_core_state(core, snap):
         conn.weight = float(snap["weights"][i])
 
 
+def _run_warmup_weight_frozen(core, warmup_steps, env):
+    """Run warmup with weights frozen every step.
+    State (activations, energies, h[u], traces) evolves normally.
+    Returns (warmup_weight_delta, nan_hit)."""
+    w0 = core._weight_cache.copy()
+    w0_conn = [c.weight for c in core.connections]
+    nan_hit = False
+    for s in range(warmup_steps):
+        influences = env.compute_influences(core.units, s)
+        core.step(env_influences=influences if influences else None)
+        if not nan_hit and np.any(np.isnan(core._activations)):
+            nan_hit = True
+        core._weight_cache[:] = w0
+        for i, conn in enumerate(core.connections):
+            conn.weight = w0_conn[i]
+    warmup_weight_delta = float(np.sum(np.abs(core._weight_cache - w0)))
+    return warmup_weight_delta, nan_hit
+
+
 class Scheduler:
     def __init__(self, rng):
         self._rng = rng
@@ -213,13 +232,17 @@ def run_closed_loop(cfg, seed_env, seed_sched, decision_points, pulse_dur,
     event_log = []
     h_warmup_end = None
 
-    for s in range(TOTAL_STEPS):
+    # Warmup phase: weights frozen, no events (decision_points start at WARMUP_END)
+    warmup_weight_delta_cl, warmup_nan = _run_warmup_weight_frozen(core, WARMUP_END, env)
+    if warmup_nan:
+        nan_hit = True
+    h_warmup_end = core._historical_context_trace.copy()
+
+    for s in range(WARMUP_END, TOTAL_STEPS):
         influences = env.compute_influences(core.units, s)
         core.step(env_influences=influences if influences else None)
         if not nan_hit and np.any(np.isnan(core._activations)):
             nan_hit = True
-        if s == WARMUP_END - 1:
-            h_warmup_end = core._historical_context_trace.copy()
         if s in decision_points:
             act_l, act_r = _compute_region_activity(core)
             result = scheduler.propose(act_l, act_r)
@@ -260,6 +283,7 @@ def run_closed_loop(cfg, seed_env, seed_sched, decision_points, pulse_dur,
         "saturation_frac": round(_saturation_frac(core), 8),
         "max_abs_weight": round(float(np.max(np.abs(core._weight_cache))), 8)
             if len(core._weight_cache) > 0 else 0.0,
+        "warmup_weight_delta_l1": round(warmup_weight_delta_cl, 8),
         "h_l1_final": round(float(np.sum(h_final)), 8),
         "h_mean_final": round(float(np.mean(h_final)), 8),
         "h_max_final": round(float(np.max(h_final)), 8),
@@ -284,25 +308,24 @@ def run_exact_replay(cfg, seed_env, event_trace, pulse_dur, code_sha, config_sha
     n_expected = len(event_trace)
     hash_mismatches = 0
     h_warmup_end = None
-    warmup_weight_delta = 0.0
-    w0 = core._weight_cache.copy()
 
-    for s in range(TOTAL_STEPS):
-        if s == WARMUP_END:
-            warmup_weight_delta = float(np.sum(np.abs(core._weight_cache - w0)))
-            core._weight_cache[:] = w0
-            for i, conn in enumerate(core.connections):
-                conn.weight = float(w0[i])
-            core.config.event_pair_plasticity_enabled = True
-            core.config.consolidation_enabled = True
-            if core._tag_cache is None:
-                core._init_consolidation()
+    # Warmup phase: weights frozen, no events (event_trace starts at WARMUP_END)
+    warmup_weight_delta, warmup_nan = _run_warmup_weight_frozen(core, WARMUP_END, env)
+    if warmup_nan:
+        nan_hit = True
+    h_warmup_end = core._historical_context_trace.copy()
+
+    # Enable 9C+9D for replay phase
+    core.config.event_pair_plasticity_enabled = True
+    core.config.consolidation_enabled = True
+    if core._tag_cache is None:
+        core._init_consolidation()
+
+    for s in range(WARMUP_END, TOTAL_STEPS):
         influences = env.compute_influences(core.units, s)
         core.step(env_influences=influences if influences else None)
         if not nan_hit and np.any(np.isnan(core._activations)):
             nan_hit = True
-        if s == WARMUP_END - 1:
-            h_warmup_end = core._historical_context_trace.copy()
         while replay_idx < n_expected and event_trace[replay_idx][0] == s:
             t_dec, chosen, exp_hash = event_trace[replay_idx]
             phi = phi_cache[chosen]
@@ -378,15 +401,7 @@ def run_divergent_warmup_replay(seed_env, event_trace, pulse_dur, code_sha):
     assert np.allclose(core_div._weight_cache, core_ref._weight_cache)
 
     env_div = Environment()
-    w0_div = core_div._weight_cache.copy()
-    for s in range(WARMUP_END):
-        influences = env_div.compute_influences(core_div.units, s)
-        core_div.step(env_influences=influences if influences else None)
-
-    core_div._weight_cache[:] = w0_div
-    for i, conn in enumerate(core_div.connections):
-        conn.weight = float(w0_div[i])
-    warmup_weight_delta = float(np.sum(np.abs(core_div._weight_cache - w0_div)))
+    warmup_weight_delta, _ = _run_warmup_weight_frozen(core_div, WARMUP_END, env_div)
     h_warmup_end = core_div._historical_context_trace.copy()
 
     div_state = {
@@ -400,13 +415,7 @@ def run_divergent_warmup_replay(seed_env, event_trace, pulse_dur, code_sha):
 
     # Run ref warmup for activation divergence comparison
     env_ref = Environment()
-    w0_ref = core_ref._weight_cache.copy()
-    for s in range(WARMUP_END):
-        influences = env_ref.compute_influences(core_ref.units, s)
-        core_ref.step(env_influences=influences if influences else None)
-    core_ref._weight_cache[:] = w0_ref
-    for i, conn in enumerate(core_ref.connections):
-        conn.weight = float(w0_ref[i])
+    _run_warmup_weight_frozen(core_ref, WARMUP_END, env_ref)
     warmup_act_div = _activation_divergence(core_div._activations, core_ref._activations)
     warmup_energy_div = abs(float(np.mean(core_div._energies)) -
                             float(np.mean(core_ref._energies)))
@@ -508,14 +517,7 @@ def run_matched_warmup_control(seed_env, pulse_dur, code_sha):
     _restore_core_state(core_div, ref_snap_mc)
 
     env_div = Environment()
-    w0_div = core_div._weight_cache.copy()
-    for s in range(WARMUP_END):
-        influences = env_div.compute_influences(core_div.units, s)
-        core_div.step(env_influences=influences if influences else None)
-    core_div._weight_cache[:] = w0_div
-    for i, conn in enumerate(core_div.connections):
-        conn.weight = float(w0_div[i])
-    warmup_weight_delta = float(np.sum(np.abs(core_div._weight_cache - w0_div)))
+    warmup_weight_delta, _ = _run_warmup_weight_frozen(core_div, WARMUP_END, env_div)
     warmup_act_div = _activation_divergence(core_div._activations,
                                             ref_snap_mc["activations"])
     h_warmup_end = core_div._historical_context_trace.copy()

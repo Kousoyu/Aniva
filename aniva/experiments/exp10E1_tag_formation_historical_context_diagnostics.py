@@ -394,6 +394,20 @@ def _git_sha():
 # Arm runners
 # ═══════════════════════════════════════════════════════════════════
 
+def _tag_event_hash(event_index, event_step, event_type, tag_pre, tag_after):
+    """Stable per-event hash over the tag formation content.
+
+    Exact-replay mirror must reproduce these hashes bit-for-bit. Any mismatch
+    means closed_loop and exact_replay diverged in tag formation — protocol bug.
+    """
+    h = hashlib.sha256()
+    h.update(f"{event_index}|{event_step}|{event_type}|".encode())
+    h.update(np.ascontiguousarray(tag_pre, dtype=np.float64).tobytes())
+    h.update(b"|")
+    h.update(np.ascontiguousarray(tag_after, dtype=np.float64).tobytes())
+    return h.hexdigest()[:16]
+
+
 def _run_arm_closed_loop(seed_env, decision_points):
     cfg = _make_cfg(seed_env)
     core = LifeCore(cfg)
@@ -403,6 +417,7 @@ def _run_arm_closed_loop(seed_env, decision_points):
     phi_cache = _build_phi_cache(core)
     event_rows = []
     event_log = []
+    tag_hashes = []
     event_index = 0
 
     _run_warmup_weight_frozen(core, WARMUP_END, env)
@@ -435,6 +450,9 @@ def _run_arm_closed_loop(seed_env, decision_points):
                 core.apply_event_pair_phi(phi)
 
                 if tag_pre is not None:
+                    tag_after = core._tag_cache.copy()
+                    th = _tag_event_hash(event_index, s, chosen, tag_pre, tag_after)
+                    tag_hashes.append((event_index, s, chosen, th))
                     rows = _capture_event_rows(core, h_pre, acts_pre, tag_pre, w_pre,
                                                seed_env, "closed_loop",
                                                event_index, s, chosen)
@@ -443,7 +461,7 @@ def _run_arm_closed_loop(seed_env, decision_points):
                                   "phi_hash": hashlib.sha256(phi.tobytes()).hexdigest()[:16]})
                 event_index += 1
 
-    return event_rows, event_log
+    return event_rows, event_log, tag_hashes
 
 
 def _run_arm_exact_replay(seed_env, event_log):
@@ -453,6 +471,7 @@ def _run_arm_exact_replay(seed_env, event_log):
     phi_cache = _build_phi_cache(core)
     env = Environment()
     event_rows = []
+    tag_hashes = []
     hash_mismatches = 0
     replay_idx = 0
 
@@ -487,13 +506,16 @@ def _run_arm_exact_replay(seed_env, event_log):
             core.apply_event_pair_phi(phi)
 
             if tag_pre is not None:
+                tag_after = core._tag_cache.copy()
+                th = _tag_event_hash(replay_idx, s, chosen, tag_pre, tag_after)
+                tag_hashes.append((replay_idx, s, chosen, th))
                 rows = _capture_event_rows(core, h_pre, acts_pre, tag_pre, w_pre,
                                            seed_env, "exact_replay",
                                            replay_idx, s, chosen)
                 event_rows.extend(rows)
             replay_idx += 1
 
-    return event_rows, hash_mismatches  # exact_replay end
+    return event_rows, hash_mismatches, tag_hashes  # exact_replay end
 
 
 def _run_arm_divergent(seed_env, event_log):
@@ -661,14 +683,21 @@ def main():
         t0 = time.time()
 
         print("  [1/3] closed_loop ...")
-        cl_rows, event_log = _run_arm_closed_loop(seed, decision_points)
+        cl_rows, event_log, cl_tag_hashes = _run_arm_closed_loop(seed, decision_points)
         n_events = len(event_log)
-        print(f"    events={n_events}  rows={len(cl_rows)}")
+        print(f"    events={n_events}  rows={len(cl_rows)}  tag_hashes={len(cl_tag_hashes)}")
         all_event_rows.extend(cl_rows)
 
         print("  [2/3] exact_replay ...")
-        er_rows, er_mm = _run_arm_exact_replay(seed, event_log)
-        print(f"    rows={len(er_rows)}  hash_mismatches={er_mm}")
+        er_rows, er_mm, er_tag_hashes = _run_arm_exact_replay(seed, event_log)
+        # Compare tag formation content: closed_loop vs exact_replay
+        tag_mismatch = 0
+        n_compare = min(len(cl_tag_hashes), len(er_tag_hashes))
+        for i in range(n_compare):
+            if cl_tag_hashes[i] != er_tag_hashes[i]:
+                tag_mismatch += 1
+        tag_mismatch += abs(len(cl_tag_hashes) - len(er_tag_hashes))
+        print(f"    rows={len(er_rows)}  hash_mismatches={er_mm}  tag_hash_mismatches={tag_mismatch}")
         all_event_rows.extend(er_rows)
 
         print("  [3/3] divergent_warmup_replay ...")
@@ -683,6 +712,9 @@ def main():
             "n_cl_rows": len(cl_rows), "n_er_rows": len(er_rows),
             "n_dv_rows": len(dv_rows),
             "er_hash_mismatches": er_mm, "dv_hash_mismatches": dv_mm,
+            "exact_tag_hash_mismatch_count": tag_mismatch,
+            "n_cl_tag_hashes": len(cl_tag_hashes),
+            "n_er_tag_hashes": len(er_tag_hashes),
             "elapsed_s": round(elapsed, 2),
         })
 
@@ -697,6 +729,10 @@ def main():
         checks[f"P5_dv_hash_ok_seed{s}"] = sm["dv_hash_mismatches"] == 0
         checks[f"P6_cl_er_row_count_match_seed{s}"] = (
             sm["n_cl_rows"] == sm["n_er_rows"])
+        checks[f"P7_exact_tag_hash_match_seed{s}"] = (
+            sm["exact_tag_hash_mismatch_count"] == 0
+            and sm["n_cl_tag_hashes"] == sm["n_er_tag_hashes"]
+            and sm["n_cl_tag_hashes"] > 0)
 
     all_pass = all(checks.values())
     print("\n=== Protocol Checks ===")

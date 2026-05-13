@@ -493,6 +493,90 @@ def _run_arm_exact_replay(seed_env, event_log):
                 event_rows.extend(rows)
             replay_idx += 1
 
+    return event_rows, hash_mismatches  # exact_replay end
+
+
+def _run_arm_divergent(seed_env, event_log):
+    """Key test arm: divergent warmup → different h[u] → same events."""
+    hc_kw = dict(historical_context_enabled=True,
+                 historical_context_tau=HISTORICAL_CONTEXT_TAU,
+                 historical_context_clip=True)
+    cfg_ref = AnivaConfig(unit_count=300, seed=seed_env,
+                          event_pair_plasticity_enabled=False,
+                          consolidation_enabled=False, **hc_kw)
+    core_ref = LifeCore(cfg_ref)
+    ref_snap = _snapshot_core_state(core_ref)
+
+    cfg_div = AnivaConfig(unit_count=300, seed=seed_env + DIVERGENT_NOISE_OFFSET,
+                          event_pair_plasticity_enabled=False,
+                          consolidation_enabled=False, **hc_kw)
+    core_div = LifeCore(cfg_div)
+    _restore_core_state(core_div, ref_snap)
+
+    env_div = Environment()
+    _run_warmup_weight_frozen(core_div, WARMUP_END, env_div)
+    div_state = {
+        "activations": core_div._activations.copy(),
+        "energies": core_div._energies.copy(),
+        "traces": core_div._traces.copy(),
+        "event_trace": core_div._event_trace.copy(),
+        "weight_cache": core_div._weight_cache.copy(),
+        "h_trace": core_div._historical_context_trace.copy(),
+    }
+
+    cfg_replay = _make_cfg(seed_env, event_pair_on=True, consolidation_on=True)
+    core_replay = LifeCore(cfg_replay)
+    core_replay._activations[:] = div_state["activations"]
+    core_replay._energies[:] = div_state["energies"]
+    core_replay._traces[:] = div_state["traces"]
+    core_replay._event_trace[:] = div_state["event_trace"]
+    core_replay._weight_cache[:] = div_state["weight_cache"]
+    core_replay._historical_context_trace[:] = div_state["h_trace"]
+    for i, conn in enumerate(core_replay.connections):
+        conn.weight = float(div_state["weight_cache"][i])
+
+    phi_cache = _build_phi_cache(core_replay)
+    env_replay = Environment()
+    event_rows = []
+    hash_mismatches = 0
+    replay_idx = 0
+
+    for s in range(WARMUP_END, TOTAL_STEPS):
+        influences = env_replay.compute_influences(core_replay.units, s)
+        core_replay.step(env_influences=influences if influences else None)
+
+        while replay_idx < len(event_log) and event_log[replay_idx]["t"] == s:
+            entry = event_log[replay_idx]
+            chosen = entry["chosen"]
+            phi = phi_cache[chosen]
+            actual_hash = hashlib.sha256(phi.tobytes()).hexdigest()[:16]
+            if actual_hash != entry["phi_hash"]:
+                hash_mismatches += 1
+
+            h_pre = core_replay._historical_context_trace.copy()
+            acts_pre = core_replay._activations.copy()
+            tag_pre = (core_replay._tag_cache.copy()
+                       if core_replay._tag_cache is not None else None)
+            w_pre = core_replay._weight_cache.copy()
+
+            stim = STIM_MAP.get(chosen)
+            if stim is None:
+                env_replay.add_event(StimulusEvent(stimulus=L_STIM, start_step=s,
+                                                   duration_steps=PULSE_DURATION))
+                env_replay.add_event(StimulusEvent(stimulus=R_STIM, start_step=s,
+                                                   duration_steps=PULSE_DURATION))
+            else:
+                env_replay.add_event(StimulusEvent(stimulus=stim, start_step=s,
+                                                   duration_steps=PULSE_DURATION))
+            core_replay.apply_event_pair_phi(phi)
+
+            if tag_pre is not None:
+                rows = _capture_event_rows(core_replay, h_pre, acts_pre, tag_pre, w_pre,
+                                           seed_env, "divergent_warmup_replay",
+                                           replay_idx, s, chosen)
+                event_rows.extend(rows)
+            replay_idx += 1
+
     return event_rows, hash_mismatches  # divergent end
 
 
@@ -671,85 +755,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-def _run_arm_divergent(seed_env, event_log):
-    """Key test arm: divergent warmup → different h[u] → same events."""
-    hc_kw = dict(historical_context_enabled=True,
-                 historical_context_tau=HISTORICAL_CONTEXT_TAU,
-                 historical_context_clip=True)
-    cfg_ref = AnivaConfig(unit_count=300, seed=seed_env,
-                          event_pair_plasticity_enabled=False,
-                          consolidation_enabled=False, **hc_kw)
-    core_ref = LifeCore(cfg_ref)
-    ref_snap = _snapshot_core_state(core_ref)
-
-    cfg_div = AnivaConfig(unit_count=300, seed=seed_env + DIVERGENT_NOISE_OFFSET,
-                          event_pair_plasticity_enabled=False,
-                          consolidation_enabled=False, **hc_kw)
-    core_div = LifeCore(cfg_div)
-    _restore_core_state(core_div, ref_snap)
-
-    env_div = Environment()
-    _run_warmup_weight_frozen(core_div, WARMUP_END, env_div)
-    div_state = {
-        "activations": core_div._activations.copy(),
-        "energies": core_div._energies.copy(),
-        "traces": core_div._traces.copy(),
-        "event_trace": core_div._event_trace.copy(),
-        "weight_cache": core_div._weight_cache.copy(),
-        "h_trace": core_div._historical_context_trace.copy(),
-    }
-
-    cfg_replay = _make_cfg(seed_env, event_pair_on=True, consolidation_on=True)
-    core_replay = LifeCore(cfg_replay)
-    core_replay._activations[:] = div_state["activations"]
-    core_replay._energies[:] = div_state["energies"]
-    core_replay._traces[:] = div_state["traces"]
-    core_replay._event_trace[:] = div_state["event_trace"]
-    core_replay._weight_cache[:] = div_state["weight_cache"]
-    core_replay._historical_context_trace[:] = div_state["h_trace"]
-    for i, conn in enumerate(core_replay.connections):
-        conn.weight = float(div_state["weight_cache"][i])
-
-    phi_cache = _build_phi_cache(core_replay)
-    env_replay = Environment()
-    event_rows = []
-    hash_mismatches = 0
-    replay_idx = 0
-
-    for s in range(WARMUP_END, TOTAL_STEPS):
-        influences = env_replay.compute_influences(core_replay.units, s)
-        core_replay.step(env_influences=influences if influences else None)
-
-        while replay_idx < len(event_log) and event_log[replay_idx]["t"] == s:
-            entry = event_log[replay_idx]
-            chosen = entry["chosen"]
-            phi = phi_cache[chosen]
-            actual_hash = hashlib.sha256(phi.tobytes()).hexdigest()[:16]
-            if actual_hash != entry["phi_hash"]:
-                hash_mismatches += 1
-
-            h_pre = core_replay._historical_context_trace.copy()
-            acts_pre = core_replay._activations.copy()
-            tag_pre = (core_replay._tag_cache.copy()
-                       if core_replay._tag_cache is not None else None)
-            w_pre = core_replay._weight_cache.copy()
-
-            stim = STIM_MAP.get(chosen)
-            if stim is None:
-                env_replay.add_event(StimulusEvent(stimulus=L_STIM, start_step=s,
-                                                   duration_steps=PULSE_DURATION))
-                env_replay.add_event(StimulusEvent(stimulus=R_STIM, start_step=s,
-                                                   duration_steps=PULSE_DURATION))
-            else:
-                env_replay.add_event(StimulusEvent(stimulus=stim, start_step=s,
-                                                   duration_steps=PULSE_DURATION))
-            core_replay.apply_event_pair_phi(phi)
-
-            if tag_pre is not None:
-                rows = _capture_event_rows(core_replay, h_pre, acts_pre, tag_pre, w_pre,
-                                           seed_env, "divergent_warmup_replay",
-                                           replay_idx, s, chosen)
-                event_rows.extend(rows)
-            replay_idx += 1
-
-    return event_rows, hash_mismatches

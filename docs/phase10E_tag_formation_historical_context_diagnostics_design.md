@@ -260,8 +260,8 @@ Next step: expand to 4-seed diagnostic before mechanism design.
 Same three-arm structure as 10D.4A:
 
 1. **closed_loop**: live scheduler, real event history, real h[u] accumulation
-2. **exact_replay**: same events, same warmup, different h trajectory (control)
-3. **divergent_warmup_replay**: divergent warmup → different h[u] → same events
+2. **exact_replay**: same warmup, same event sequence, same h trajectory; mirror control. It should reproduce closed_loop tag formation under deterministic replay. If exact_replay tag formation differs from closed_loop, it is a protocol bug and no tag-formation interpretation is allowed.
+3. **divergent_warmup_replay**: divergent warmup → different h[u] → same events; key test arm.
 
 The divergent arm is the key test: if h[u] predicts tag formation, then a different
 warmup history should produce different tag formation patterns for the same events.

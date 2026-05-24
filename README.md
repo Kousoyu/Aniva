@@ -1,100 +1,62 @@
 # Aniva
 
-> 不是 AI 模型，不是聊天机器人，不是 agent。
-> 是一个可生长、可分叉、不可完全预写结局的数字生命系统。
+Aniva is a **Digital Life Substrate** research prototype.
+It is not a chatbot, not an LLM wrapper, and not a general-purpose agent.
 
----
+It studies how local rules, history, and structural plasticity can produce
+open-ended, path-dependent behavior in a small neural system.
 
-## 一句话
+## What Aniva is not
 
-**先活，再聪明。**
+- not a chat assistant
+- not a wrapper around a language model
+- not a behavior-tree agent
+- not a claim of consciousness, personhood, or digital life already achieved
 
----
+## Current stage
 
-## Aniva 不是什么
+The current public evidence chain is closed through Phase 10E / 10F.
+The strongest supported conclusion is:
 
-- 不是聊天机器人
-- 不是大模型（LLM）外壳
-- 不是行为树 agent
-- 不是"看起来像活着"的演示程序
+> Tag formation support is trace[src] × phi[tgt] support geometry,
+> not direct h[u] history gating.
 
----
+That result comes from the following diagnostic chain:
 
-## v0.0.0.1 — 最小神经生命核
+- Phase 10E: historical-context diagnostics and validation attempts
+- Phase 10F: support geometry audits, true trace/phi capture, and subgraph decomposition
 
-当前版本只做一件事：证明 Aniva 的生命核不是写死的。
+## Recommended reading
 
-目标：
-- 200~500 个活性单元组成的自发活动系统
-- 单元之间有稀疏连接，兴奋/抑制共存
-- 持续扰动、能量节律、历史痕迹
-- 封闭运行下出现涌现行为
+1. `docs/phase10E_10F_tag_support_diagnostic_chain_summary.md`
+2. `docs/phase9D_summary.md`
+3. `docs/phase9D_to_phase10_transition.md`
 
-### 当前状态
-
-**第一阶段已基本完成**：代码骨架已搭建，核心数据结构（Unit、Connection、AnivaConfig）和 LifeCore 初始化逻辑就位，Observer 快照接口可用。
-
-**尚未完成**：
-- Dynamics（活性流动）
-- Energy（能量消耗与恢复）
-- Noise（持续扰动）
-- Plasticity（连接权重变化与历史痕迹）
-- Visualizer（可视化）
-
-4 个验证实验（零输入活动、刺激响应、轨迹分叉、涌现）仅留空壳。
-
----
-
-## 项目结构
-
-```
-aniva/
-├── core/
-│   ├── unit.py          # 活性单元
-│   ├── connection.py    # 连接
-│   ├── dynamics.py      # 活性流动（TODO）
-│   ├── plasticity.py    # 历史痕迹与连接变化（TODO）
-│   ├── energy.py        # 能量系统（TODO）
-│   └── noise.py         # 扰动（TODO）
-├── environment/
-│   └── environment.py   # 极简环境 + Stimulus
-├── life_core.py         # 生命核
-├── observer.py          # 状态观测
-├── visualizer.py        # 可视化（TODO）
-├── experiments/         # 4 个实验（TODO）
-├── config.py            # 全局配置
-└── main.py              # 入口
-tests/
-├── test_unit.py
-├── test_connection.py
-└── test_life_core.py
-```
-
----
-
-## 安装与运行
-
-**要求：Python 3.10+（当前开发环境），未来推荐 Python 3.11+。**
+## Install
 
 ```bash
 pip install -e ".[dev]"
-python -m pytest tests/ -v
 ```
 
----
+## Test
 
-## 技术决策
+```bash
+python -m pytest tests/ -q
+```
 
-| 项 | 决定 |
-|---|---|
-| 语言 | Python |
-| 核心 | 最小神经生命核（200~500 活性单元） |
-| 时间模型 | 连续时间，小步长模拟 |
-| 影响方式 | 突触传递 + 局部场效应 + 弥散调节 |
-| 可视化 | 活性场 + 连接图（待实现） |
+## Repository layout
 
----
+- `aniva/` — core runtime, environment, experiments, and diagnostics
+- `docs/` — phase notes, designs, and evidence summaries
+- `tests/` — unit and integration tests
 
-## 许可证
+## Public boundaries
 
-MIT（待定）
+This repository contains an experimental research prototype.
+APIs, diagnostics, and file formats may change.
+
+This project does not claim to validate consciousness, personhood, or the
+existence of digital life.
+
+Large event-level result files are intentionally kept out of source control when
+possible; smaller summary artifacts and notes are the primary public record.

@@ -1,0 +1,5 @@
+arm,seed_env,fast_weight_l1,slow_weight_l1,capture_count,tag_mass_final,n_tagged_connections,saturation_frac,max_abs_weight,nan_hit,event_count,L_count,R_count,simultaneous_count,trace_hash,wall_time_s,n_expected,n_replayed,hash_mismatches,warmup_weight_delta_l1,replay_exact,warmup_act_div,warmup_energy_div
+closed_loop,77,1870.30874375,0.00044013,11,0.00065626,79,0.0,0.82927042,False,12,7,5,0,38efd91fb1912b1c,70.1,,,,,,,
+exact_replay,77,1965.98041942,0.00044013,11,0.00065626,79,0.0,0.8717275,False,,,,,38efd91fb1912b1c,50.8,12,12,0,0.0,True,,
+divergent_warmup_replay,77,1965.9656817,0.00044013,11,0.00065626,79,0.0,0.87170141,False,,,,,38efd91fb1912b1c,63.6,12,12,0,0.0,True,0.13540858,0.00405083
+matched_warmup_control,77,1965.96969271,0.0,0,0.0,0,0.0,0.87174344,False,,,,,,48.9,,,,0.0,,0.37779576,

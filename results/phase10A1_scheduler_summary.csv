@@ -1,0 +1,3 @@
+experiment,seed_env,seed_sched,code_sha,config_sha,n_decisions,event_count,none_count,L_count,R_count,simultaneous_count,none_rate,n_unique_event_types,inter_event_interval_mean,inter_event_interval_var,nan_count,applied_ok_all,hard_pass,soft_pass,p1_no_nan,p2_fields_present,b1_events_gt_0,b2_none_rate_bounded,b3_type_diversity,wall_time_s
+phase10A1_scheduler_plumbing_smoke,42,1042,17d6437,90a91b4e66c2fb96,11,5,6,4,1,0,0.5455,2,625.0,46875.0,0,True,True,True,True,True,True,True,True,62.8
+phase10A1_scheduler_plumbing_smoke,77,1077,17d6437,fd0b6f1b3415f2d3,11,8,3,3,5,0,0.2727,2,714.29,132653.06,0,True,True,False,True,True,True,False,True,65.3

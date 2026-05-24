@@ -81,6 +81,11 @@ class AnivaConfig:
     consolidation_slow_weight_rate: float = 0.1  # tag → slow_weight transfer ratio
     consolidation_capture_refractory_steps: int = 500  # steps between captures
     consolidation_ledger_enabled: bool = False  # capture event log
+    consolidation_diagnostics_enabled: bool = False  # 10C.1 context metrics in ledger
+    # Phase 10D: historical context trace (all default off)
+    historical_context_enabled: bool = False  # per-unit slow activation history trace
+    historical_context_tau: float = 10000.0   # time constant (steps); τ >> event_trace
+    historical_context_clip: bool = True       # clip h[u] to [0, 1]
 
     def __post_init__(self):
         if self.unit_count < 1:

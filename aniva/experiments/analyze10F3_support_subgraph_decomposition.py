@@ -333,7 +333,10 @@ def _summarize_cross_seed(summaries):
         }
 
     h_upstream_status = "h_not_upstream_of_9C_support"
-    if any(abs(s["corr_h_trace_src"]) > 0.5 or abs(s["corr_h_phi_tgt"]) > 0.5 for s in summaries if s["arm"] == "closed_loop"):
+    if any(
+        abs(float(s["corr_h_trace_src"])) > 0.5 or abs(float(s["corr_h_phi_tgt"])) > 0.5
+        for s in summaries if s["arm"] == "closed_loop"
+    ):
         h_upstream_status = "candidate_h_indirect_support_path"
 
     return {

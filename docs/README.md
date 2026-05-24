@@ -7,6 +7,7 @@ Start here if you want the research narrative rather than the raw code.
 1. `phase9D_summary.md`
 2. `phase9D_to_phase10_transition.md`
 3. `phase10E_10F_tag_support_diagnostic_chain_summary.md`
+4. `phase10_public_release_and_next_route_decision.md`
 
 ## What the current public evidence says
 

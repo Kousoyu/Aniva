@@ -55,6 +55,8 @@ python -m pytest tests/ -q
 This repository contains an experimental research prototype.
 APIs, diagnostics, and file formats may change.
 
+Most readers should start from the docs summaries, not raw result CSV files.
+
 This project does not claim to validate consciousness, personhood, or the
 existence of digital life.
 
